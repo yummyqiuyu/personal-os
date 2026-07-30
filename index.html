@@ -10,7 +10,6 @@
 <link rel="apple-touch-icon" href="app-icon-180.png">
 <link rel="manifest" href="manifest.json">
 <title>小悠 · Personal OS</title>
-<script src="supabase.js"></script>
 <style>
   :root {
     --bg: #F8F5F1;
@@ -640,24 +639,36 @@
 
 <script>
 // ═══════════════════════════════════════════════════════════════
-//  SUPABASE CONFIG
+//  SUPABASE CONFIG (直接用 fetch API，无需外部库)
 // ═══════════════════════════════════════════════════════════════
 const SUPABASE_URL = 'https://chdqesqtlgbmwoeubg.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_KstA9qxhRbB1dwcyGnlihA_pMn8tzWQ';
-let supabase = null;
+let currentUser = null;
+let sessionToken = null;
+let isAuthMode = 'login';
 
-try {
-  if (typeof window.supabase === 'undefined' || !window.supabase.createClient) {
-    throw new Error('Supabase 库加载失败');
+// 统一的 Supabase REST API 请求函数
+async function sbFetch(path, options = {}) {
+  const headers = {
+    'apikey': SUPABASE_KEY,
+    'Content-Type': 'application/json',
+    ...options.headers
+  };
+  if (sessionToken) headers['Authorization'] = 'Bearer ' + sessionToken;
+  try {
+    const res = await fetch(SUPABASE_URL + path, { ...options, headers });
+    const text = await res.text();
+    let data; try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+    return { ok: res.ok, data, status: res.status };
+  } catch (e) {
+    return { ok: false, data: { message: e.message || '网络错误' }, status: 0 };
   }
-  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-} catch (e) {
-  console.error('Supabase init error:', e);
-  document.getElementById('authError').textContent = '网络连接问题，请刷新页面重试';
 }
 
-let currentUser = null;
-let isAuthMode = 'login'; // 'login' or 'register'
+// 提取错误信息
+function getErrMsg(d) {
+  return d?.message || d?.msg || d?.error_description || d?.error || (typeof d === 'string' ? d : '操作失败，请重试');
+}
 
 // ═══════════════════════════════════════════════════════════════
 //  AUTH
@@ -686,65 +697,104 @@ async function handleAuth() {
   if (password.length < 6) { errEl.textContent = '密码至少6位'; return; }
 
   btn.disabled = true;
+  btn.textContent = '请稍候...';
 
   try {
     let result;
     if (isAuthMode === 'login') {
-      result = await supabase.auth.signInWithPassword({ email, password });
+      // 登录：POST /auth/v1/token?grant_type=password
+      result = await sbFetch('/auth/v1/token?grant_type=password', {
+        method: 'POST',
+        body: JSON.stringify({ email, password })
+      });
     } else {
-      result = await supabase.auth.signUp({ email, password });
+      // 注册：POST /auth/v1/signup
+      result = await sbFetch('/auth/v1/signup', {
+        method: 'POST',
+        body: JSON.stringify({ email, password })
+      });
     }
 
-    if (result.error) {
-      errEl.textContent = result.error.message;
+    if (!result.ok) {
+      errEl.textContent = getErrMsg(result.data);
       btn.disabled = false;
+      btn.textContent = isAuthMode === 'login' ? '登录' : '注册';
       return;
     }
 
+    // 注册成功
     if (isAuthMode === 'register') {
-      sucEl.textContent = '注册成功！请检查邮箱验证链接，然后登录。';
+      // 如果返回了 session（关闭了邮箱验证），直接登录
+      if (result.data.session) {
+        sessionToken = result.data.session.access_token;
+        currentUser = result.data.user;
+        localStorage.setItem('sb_session', JSON.stringify({ token: sessionToken, user: currentUser }));
+        await initApp();
+        return;
+      }
+      // 否则需要邮箱验证
+      sucEl.textContent = '注册成功！请检查邮箱点击验证链接，然后登录。';
+      isAuthMode = 'login';
+      document.getElementById('authBtn').textContent = '登录';
+      document.getElementById('authSwitch').innerHTML = '还没有账号？<a onclick="toggleAuthMode()">注册一个</a>';
       btn.disabled = false;
       return;
     }
 
-    // Login success
+    // 登录成功
+    sessionToken = result.data.access_token;
     currentUser = result.data.user;
+    localStorage.setItem('sb_session', JSON.stringify({ token: sessionToken, user: currentUser }));
     await initApp();
   } catch (e) {
-    errEl.textContent = '网络错误，请重试';
+    errEl.textContent = '网络错误：' + (e.message || '请重试');
     btn.disabled = false;
+    btn.textContent = isAuthMode === 'login' ? '登录' : '注册';
   }
 }
 
-// Check existing session
+// 检查已保存的登录会话
 async function checkSession() {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session?.user) {
+  try {
+    const saved = localStorage.getItem('sb_session');
+    if (!saved) return;
+    const session = JSON.parse(saved);
+    if (!session.token || !session.user) return;
+    sessionToken = session.token;
     currentUser = session.user;
-    await initApp();
+    // 验证会话是否仍然有效
+    const result = await sbFetch('/auth/v1/user');
+    if (!result.ok) {
+      localStorage.removeItem('sb_session');
+      sessionToken = null;
+      currentUser = null;
+    } else {
+      currentUser = result.data;
+      await initApp();
+    }
+  } catch (e) {
+    console.error('Session check failed:', e);
   }
 }
 
-// Logout
+// 退出登录
 async function logout() {
-  await supabase.auth.signOut();
+  try { await sbFetch('/auth/v1/logout', { method: 'POST' }); } catch (e) {}
+  localStorage.removeItem('sb_session');
+  sessionToken = null;
+  currentUser = null;
   location.reload();
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  DATA LAYER (Supabase)
+//  DATA LAYER (Supabase REST API)
 // ═══════════════════════════════════════════════════════════════
 async function dbLoad(key, defaultValue) {
   if (!currentUser) return defaultValue;
   try {
-    const { data, error } = await supabase
-      .from('user_data')
-      .select('data_value')
-      .eq('user_id', currentUser.id)
-      .eq('data_key', key)
-      .single();
-    if (error && error.code !== 'PGRST116') { console.error('dbLoad error:', key, error); }
-    if (data?.data_value !== undefined) return data.data_value;
+    const result = await sbFetch('/rest/v1/user_data?select=data_value&user_id=eq.' + encodeURIComponent(currentUser.id) + '&data_key=eq.' + encodeURIComponent(key));
+    if (!result.ok) { console.error('dbLoad error:', key, result.data); return defaultValue; }
+    if (result.data && result.data.length > 0) return result.data[0].data_value;
   } catch (e) { console.error('dbLoad exception:', key, e); }
   return defaultValue;
 }
@@ -752,15 +802,16 @@ async function dbLoad(key, defaultValue) {
 async function dbSave(key, value) {
   if (!currentUser) return;
   try {
-    const { error } = await supabase
-      .from('user_data')
-      .upsert({
+    const result = await sbFetch('/rest/v1/user_data', {
+      method: 'POST',
+      headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify({
         user_id: currentUser.id,
         data_key: key,
-        data_value: value,
-        updated_at: new Date().toISOString()
-      });
-    if (error) console.error('dbSave error:', key, error);
+        data_value: value
+      })
+    });
+    if (!result.ok) console.error('dbSave error:', key, result.data);
   } catch (e) { console.error('dbSave exception:', key, e); }
 }
 
