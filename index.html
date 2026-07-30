@@ -480,18 +480,17 @@
 <div class="auth-overlay" id="authOverlay">
   <div class="auth-logo">🕊️</div>
   <div class="auth-title">小悠 · Personal OS</div>
-  <div class="auth-sub">你的人生操作系统，云端同步，随时可用</div>
+  <div class="auth-sub">输入你的 GitHub Token，数据自动云端同步</div>
   <div class="auth-form">
     <div class="auth-error" id="authError"></div>
     <div class="auth-success" id="authSuccess"></div>
-    <input class="auth-input" type="email" id="authEmail" placeholder="邮箱地址" autocomplete="email">
-    <input class="auth-input" type="password" id="authPassword" placeholder="密码（至少6位）" autocomplete="current-password">
-    <button class="auth-btn primary" id="authBtn" onclick="handleAuth()">登录</button>
-    <div class="auth-switch" id="authSwitch">
-      还没有账号？<a onclick="toggleAuthMode()">注册一个</a>
+    <input class="auth-input" type="password" id="authToken" placeholder="粘贴你的 GitHub Token" autocomplete="off">
+    <button class="auth-btn primary" id="authBtn" onclick="handleSetup()">进入工作台</button>
+    <div class="auth-switch">
+      <a onclick="useLocalMode()">跳过，仅本地使用（不同步）</a>
     </div>
-    <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);">
-      <button class="auth-btn ghost" onclick="useOfflineMode()" style="font-size:13px;">📴 离线使用（数据存在本地）</button>
+    <div class="auth-switch" style="margin-top:12px;">
+      <span style="font-size:11px;color:var(--text-secondary);">没有 Token？<a href="https://github.com/settings/tokens" target="_blank" style="font-size:11px;">点这里生成</a>（需勾选 repo）</span>
     </div>
   </div>
 </div>
@@ -642,244 +641,98 @@
 
 <script>
 // ═══════════════════════════════════════════════════════════════
-//  SUPABASE CONFIG (直接用 fetch API，无需外部库)
+//  GITHUB SYNC — 通过 GitHub API 读写 sync-data.json
 // ═══════════════════════════════════════════════════════════════
-const SUPABASE_URL = 'https://chdqesqtlgbmwoeubg.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_KstA9qxhRbB1dwcyGnlihA_pMn8tzWQ';
-let currentUser = null;
-let sessionToken = null;
-let isAuthMode = 'login';
-let cloudAvailable = true; // 云端是否可用
+const GH_OWNER = 'yummyqiuyu';
+const GH_REPO = 'personal-os';
+const GH_FILE = 'sync-data.json';
+let ghToken = null;
+let ghCurrentSHA = null;
+let isSyncMode = false;
+let syncData = {};    // 内存中的同步数据缓存
+let saveQueue = null; // debounce timer
 
-// 统一的 Supabase REST API 请求函数
-async function sbFetch(path, options = {}) {
-  const headers = {
-    'apikey': SUPABASE_KEY,
-    'Content-Type': 'application/json',
-    ...options.headers
-  };
-  if (sessionToken) headers['Authorization'] = 'Bearer ' + sessionToken;
-  try {
-    const res = await fetch(SUPABASE_URL + path, { ...options, headers });
-    const text = await res.text();
-    let data; try { data = text ? JSON.parse(text) : null; } catch { data = text; }
-    return { ok: res.ok, data, status: res.status };
-  } catch (e) {
-    // 网络错误：标记云端不可用
-    cloudAvailable = false;
-    return { ok: false, data: { message: e.message || '网络错误' }, status: 0 };
+// ═══════════════════════════════════════════════════════════════
+//  GITHUB API 核心函数
+// ═══════════════════════════════════════════════════════════════
+async function ghGetFile() {
+  const res = await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_FILE}`, {
+    headers: { Authorization: 'token ' + ghToken, Accept: 'application/vnd.github.v3+json' }
+  });
+  if (!res.ok) {
+    if (res.status === 404) return { content: '{}', sha: null }; // 文件不存在
+    throw new Error('GitHub 读取失败: HTTP ' + res.status);
   }
+  const data = await res.json();
+  const content = atob(data.content.replace(/\s/g, ''));
+  return { content, sha: data.sha };
 }
 
-// 提取错误信息
-function getErrMsg(d) {
-  return d?.message || d?.msg || d?.error_description || d?.error || (typeof d === 'string' ? d : '操作失败，请重试');
-}
+async function ghPutFile(contentStr, sha) {
+  const body = {
+    message: 'Auto-sync from Personal OS',
+    content: btoa(unescape(encodeURIComponent(contentStr))),
+    branch: 'main'
+  };
+  if (sha) body.sha = sha;
 
-// 离线模式入口
-function useOfflineMode() {
-  cloudAvailable = false;
-  currentUser = { id: 'offline_user' };
-  initApp();
+  const res = await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_FILE}`, {
+    method: 'PUT',
+    headers: { Authorization: 'token ' + ghToken, 'Content-Type': 'application/json', Accept: 'application/vnd.github.v3+json' },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || 'GitHub 写入失败: HTTP ' + res.status);
+  }
+  const data = await res.json();
+  return data.content.sha;
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  AUTH
+//  初始化 / 数据加载
 // ═══════════════════════════════════════════════════════════════
-function toggleAuthMode() {
-  isAuthMode = isAuthMode === 'login' ? 'register' : 'login';
-  document.getElementById('authBtn').textContent = isAuthMode === 'login' ? '登录' : '注册';
-  document.getElementById('authSwitch').innerHTML = isAuthMode === 'login'
-    ? '还没有账号？<a onclick="toggleAuthMode()">注册一个</a>'
-    : '已有账号？<a onclick="toggleAuthMode()">直接登录</a>';
-  document.getElementById('authError').textContent = '';
-  document.getElementById('authSuccess').textContent = '';
-}
-
-async function handleAuth() {
-  const email = document.getElementById('authEmail').value.trim();
-  const password = document.getElementById('authPassword').value;
+async function handleSetup() {
+  const token = document.getElementById('authToken').value.trim();
   const errEl = document.getElementById('authError');
-  const sucEl = document.getElementById('authSuccess');
   const btn = document.getElementById('authBtn');
 
   errEl.textContent = '';
-  sucEl.textContent = '';
-
-  if (!email || !password) { errEl.textContent = '请填写邮箱和密码'; return; }
-  if (password.length < 6) { errEl.textContent = '密码至少6位'; return; }
+  if (!token) { errEl.textContent = '请粘贴你的 GitHub Token'; return; }
 
   btn.disabled = true;
-  btn.textContent = '请稍候...';
+  btn.textContent = '正在连接 GitHub...';
 
   try {
-    let result;
-    if (isAuthMode === 'login') {
-      // 登录：POST /auth/v1/token?grant_type=password
-      result = await sbFetch('/auth/v1/token?grant_type=password', {
-        method: 'POST',
-        body: JSON.stringify({ email, password })
-      });
-    } else {
-      // 注册：POST /auth/v1/signup
-      result = await sbFetch('/auth/v1/signup', {
-        method: 'POST',
-        body: JSON.stringify({ email, password })
-      });
-    }
-
-    if (!result.ok) {
-      const msg = getErrMsg(result.data);
-      // 网络连接失败，提示离线模式
-      if (result.status === 0) {
-        errEl.innerHTML = '无法连接到云端服务器（' + msg + '）<br><a onclick="useOfflineMode()" style="color:var(--purple);cursor:pointer;font-weight:500;">→ 点击离线使用</a>';
-      } else {
-        errEl.textContent = msg;
-      }
-      btn.disabled = false;
-      btn.textContent = isAuthMode === 'login' ? '登录' : '注册';
-      return;
-    }
-
-    // 注册成功
-    if (isAuthMode === 'register') {
-      // 如果返回了 session（关闭了邮箱验证），直接登录
-      if (result.data.session) {
-        sessionToken = result.data.session.access_token;
-        currentUser = result.data.user;
-        localStorage.setItem('sb_session', JSON.stringify({ token: sessionToken, user: currentUser }));
-        await initApp();
-        return;
-      }
-      // 否则需要邮箱验证
-      sucEl.textContent = '注册成功！请检查邮箱点击验证链接，然后登录。';
-      isAuthMode = 'login';
-      document.getElementById('authBtn').textContent = '登录';
-      document.getElementById('authSwitch').innerHTML = '还没有账号？<a onclick="toggleAuthMode()">注册一个</a>';
-      btn.disabled = false;
-      return;
-    }
-
-    // 登录成功
-    sessionToken = result.data.access_token;
-    currentUser = result.data.user;
-    localStorage.setItem('sb_session', JSON.stringify({ token: sessionToken, user: currentUser }));
+    ghToken = token;
+    const result = await ghGetFile();
+    syncData = JSON.parse(result.content);
+    ghCurrentSHA = result.sha;
+    isSyncMode = true;
+    localStorage.setItem('gh_token', token);
     await initApp();
   } catch (e) {
-    errEl.textContent = '网络错误：' + (e.message || '请重试');
+    errEl.textContent = '连接失败: ' + e.message;
     btn.disabled = false;
-    btn.textContent = isAuthMode === 'login' ? '登录' : '注册';
+    btn.textContent = '进入工作台';
   }
 }
 
-// 检查已保存的登录会话
-async function checkSession() {
-  try {
-    const saved = localStorage.getItem('sb_session');
-    if (!saved) return;
-    const session = JSON.parse(saved);
-    if (!session.token || !session.user) return;
-    sessionToken = session.token;
-    currentUser = session.user;
-    // 验证会话是否仍然有效
-    const result = await sbFetch('/auth/v1/user');
-    if (!result.ok) {
-      if (result.status === 0) {
-        // 网络不可用，检查是否有本地离线数据
-        const hasLocalData = Object.keys(localStorage).some(k => k.startsWith('os_'));
-        if (hasLocalData) {
-          useOfflineMode();
-        }
-        return;
-      }
-      localStorage.removeItem('sb_session');
-      sessionToken = null;
-      currentUser = null;
-    } else {
-      currentUser = result.data;
-      await initApp();
-    }
-  } catch (e) {
-    console.error('Session check failed:', e);
-  }
+function useLocalMode() {
+  isSyncMode = false;
+  syncData = {};
+  initApp();
 }
 
-// 退出登录
-async function logout() {
-  try { await sbFetch('/auth/v1/logout', { method: 'POST' }); } catch (e) {}
-  localStorage.removeItem('sb_session');
-  sessionToken = null;
-  currentUser = null;
-  location.reload();
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  DATA LAYER (Supabase REST API + localStorage 离线降级)
-// ═══════════════════════════════════════════════════════════════
-async function dbLoad(key, defaultValue) {
-  if (!currentUser) return defaultValue;
-  // 离线模式：从 localStorage 读取
-  if (!cloudAvailable) {
-    try {
-      const raw = localStorage.getItem('os_' + key);
-      if (raw) return JSON.parse(raw);
-    } catch (e) {}
-    return defaultValue;
-  }
-  // 云端模式
-  try {
-    const result = await sbFetch('/rest/v1/user_data?select=data_value&user_id=eq.' + encodeURIComponent(currentUser.id) + '&data_key=eq.' + encodeURIComponent(key));
-    if (!result.ok) { console.error('dbLoad error:', key, result.data); return defaultValue; }
-    if (result.data && result.data.length > 0) return result.data[0].data_value;
-  } catch (e) { console.error('dbLoad exception:', key, e); }
-  return defaultValue;
-}
-
-async function dbSave(key, value) {
-  if (!currentUser) return;
-  // 离线模式：写入 localStorage
-  if (!cloudAvailable) {
-    try {
-      localStorage.setItem('os_' + key, JSON.stringify(value));
-    } catch (e) { console.error('localStorage save error:', key, e); }
-    return;
-  }
-  // 云端模式
-  try {
-    const result = await sbFetch('/rest/v1/user_data', {
-      method: 'POST',
-      headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-      body: JSON.stringify({
-        user_id: currentUser.id,
-        data_key: key,
-        data_value: value
-      })
-    });
-    if (!result.ok) console.error('dbSave error:', key, result.data);
-  } catch (e) { console.error('dbSave exception:', key, e); }
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  APP INIT
-// ═══════════════════════════════════════════════════════════════
 async function initApp() {
   document.getElementById('authOverlay').classList.add('hidden');
   document.getElementById('pageLoader').classList.add('show');
-  if (!cloudAvailable) {
-    document.querySelector('#pageLoader p').textContent = '正在加载本地数据...';
-  }
 
-  // Load all data
   await loadAllData();
 
   document.getElementById('pageLoader').classList.remove('show');
   document.getElementById('homePage').style.display = '';
   document.getElementById('dockBar').style.display = '';
-
-  // 离线提示
-  if (!cloudAvailable) {
-    showOfflineBanner();
-  }
 
   updateHeader();
   fetchWeather();
@@ -888,14 +741,67 @@ async function initApp() {
   renderSecy();
 }
 
-function showOfflineBanner() {
-  const banner = document.createElement('div');
-  banner.id = 'offlineBanner';
-  banner.innerHTML = '📴 离线模式：数据保存在本地浏览器中。如需云端同步，请检查网络后刷新页面。';
-  banner.style.cssText = 'background:#FEF3C7;color:#92400E;padding:8px 16px;font-size:12px;text-align:center;position:fixed;top:0;left:0;right:0;z-index:600;';
-  document.body.appendChild(banner);
-  // 点击可关闭
-  banner.onclick = () => banner.remove();
+// ═══════════════════════════════════════════════════════════════
+//  数据读写 (GitHub 同步 + localStorage 离线兼容)
+// ═══════════════════════════════════════════════════════════════
+async function dbLoad(key, defaultValue) {
+  if (isSyncMode) {
+    // 云端模式：从 GitHub 同步数据读取
+    if (syncData[key] !== undefined) return syncData[key];
+  }
+  // 本地模式 / 降级：从 localStorage
+  try {
+    const raw = localStorage.getItem('os_' + key);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return defaultValue;
+}
+
+async function dbSave(key, value) {
+  // 始终写 localStorage（即时响应）
+  try { localStorage.setItem('os_' + key, JSON.stringify(value)); } catch (e) {}
+
+  if (isSyncMode) {
+    // 云端模式：更新内存缓存 + debounce 推送到 GitHub
+    syncData[key] = value;
+    if (saveQueue) clearTimeout(saveQueue);
+    saveQueue = setTimeout(() => pushToGitHub(), 2000);
+  }
+}
+
+// 把内存中的 syncData 推送到 GitHub
+async function pushToGitHub() {
+  if (!isSyncMode || !ghToken) return;
+  try {
+    const contentStr = JSON.stringify(syncData);
+    ghCurrentSHA = await ghPutFile(contentStr, ghCurrentSHA);
+    // 同步成功，静默
+  } catch (e) {
+    console.error('GitHub sync failed:', e.message);
+    // 失败也不影响使用，数据在 localStorage 里
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  退出 / 重置
+// ═══════════════════════════════════════════════════════════════
+async function logout() {
+  localStorage.removeItem('gh_token');
+  ghToken = null;
+  isSyncMode = false;
+  syncData = {};
+  location.reload();
+}
+
+  document.getElementById('pageLoader').classList.remove('show');
+  document.getElementById('homePage').style.display = '';
+  document.getElementById('dockBar').style.display = '';
+
+  updateHeader();
+  fetchWeather();
+  renderTheme();
+  renderMd();
+  renderSecy();
 }
 
 async function loadAllData() {
@@ -1765,7 +1671,27 @@ function escHtml(s) { return s ? s.replace(/&/g,'&amp;').replace(/</g,'&lt;').re
 // ═══════════════════════════════════════════════════════════════
 //  STARTUP
 // ═══════════════════════════════════════════════════════════════
-checkSession();
+(async function() {
+  const savedToken = localStorage.getItem('gh_token');
+  if (savedToken) {
+    // 已有 token，自动连接
+    ghToken = savedToken;
+    try {
+      const result = await ghGetFile();
+      syncData = JSON.parse(result.content);
+      ghCurrentSHA = result.sha;
+      isSyncMode = true;
+      await initApp();
+    } catch (e) {
+      // GitHub 连不上，自动降级为本地模式
+      console.warn('GitHub sync unavailable, using local mode:', e.message);
+      isSyncMode = false;
+      syncData = {};
+      await initApp();
+    }
+  }
+  // 否则显示 setup 界面（不操作，等用户输入 token 或点跳过）
+})();
 </script>
 </body>
 </html>
