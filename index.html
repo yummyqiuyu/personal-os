@@ -490,6 +490,9 @@
     <div class="auth-switch" id="authSwitch">
       还没有账号？<a onclick="toggleAuthMode()">注册一个</a>
     </div>
+    <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);">
+      <button class="auth-btn ghost" onclick="useOfflineMode()" style="font-size:13px;">📴 离线使用（数据存在本地）</button>
+    </div>
   </div>
 </div>
 
@@ -646,6 +649,7 @@ const SUPABASE_KEY = 'sb_publishable_KstA9qxhRbB1dwcyGnlihA_pMn8tzWQ';
 let currentUser = null;
 let sessionToken = null;
 let isAuthMode = 'login';
+let cloudAvailable = true; // 云端是否可用
 
 // 统一的 Supabase REST API 请求函数
 async function sbFetch(path, options = {}) {
@@ -661,6 +665,8 @@ async function sbFetch(path, options = {}) {
     let data; try { data = text ? JSON.parse(text) : null; } catch { data = text; }
     return { ok: res.ok, data, status: res.status };
   } catch (e) {
+    // 网络错误：标记云端不可用
+    cloudAvailable = false;
     return { ok: false, data: { message: e.message || '网络错误' }, status: 0 };
   }
 }
@@ -668,6 +674,13 @@ async function sbFetch(path, options = {}) {
 // 提取错误信息
 function getErrMsg(d) {
   return d?.message || d?.msg || d?.error_description || d?.error || (typeof d === 'string' ? d : '操作失败，请重试');
+}
+
+// 离线模式入口
+function useOfflineMode() {
+  cloudAvailable = false;
+  currentUser = { id: 'offline_user' };
+  initApp();
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -716,7 +729,13 @@ async function handleAuth() {
     }
 
     if (!result.ok) {
-      errEl.textContent = getErrMsg(result.data);
+      const msg = getErrMsg(result.data);
+      // 网络连接失败，提示离线模式
+      if (result.status === 0) {
+        errEl.innerHTML = '无法连接到云端服务器（' + msg + '）<br><a onclick="useOfflineMode()" style="color:var(--purple);cursor:pointer;font-weight:500;">→ 点击离线使用</a>';
+      } else {
+        errEl.textContent = msg;
+      }
       btn.disabled = false;
       btn.textContent = isAuthMode === 'login' ? '登录' : '注册';
       return;
@@ -765,6 +784,14 @@ async function checkSession() {
     // 验证会话是否仍然有效
     const result = await sbFetch('/auth/v1/user');
     if (!result.ok) {
+      if (result.status === 0) {
+        // 网络不可用，检查是否有本地离线数据
+        const hasLocalData = Object.keys(localStorage).some(k => k.startsWith('os_'));
+        if (hasLocalData) {
+          useOfflineMode();
+        }
+        return;
+      }
       localStorage.removeItem('sb_session');
       sessionToken = null;
       currentUser = null;
@@ -787,10 +814,19 @@ async function logout() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  DATA LAYER (Supabase REST API)
+//  DATA LAYER (Supabase REST API + localStorage 离线降级)
 // ═══════════════════════════════════════════════════════════════
 async function dbLoad(key, defaultValue) {
   if (!currentUser) return defaultValue;
+  // 离线模式：从 localStorage 读取
+  if (!cloudAvailable) {
+    try {
+      const raw = localStorage.getItem('os_' + key);
+      if (raw) return JSON.parse(raw);
+    } catch (e) {}
+    return defaultValue;
+  }
+  // 云端模式
   try {
     const result = await sbFetch('/rest/v1/user_data?select=data_value&user_id=eq.' + encodeURIComponent(currentUser.id) + '&data_key=eq.' + encodeURIComponent(key));
     if (!result.ok) { console.error('dbLoad error:', key, result.data); return defaultValue; }
@@ -801,6 +837,14 @@ async function dbLoad(key, defaultValue) {
 
 async function dbSave(key, value) {
   if (!currentUser) return;
+  // 离线模式：写入 localStorage
+  if (!cloudAvailable) {
+    try {
+      localStorage.setItem('os_' + key, JSON.stringify(value));
+    } catch (e) { console.error('localStorage save error:', key, e); }
+    return;
+  }
+  // 云端模式
   try {
     const result = await sbFetch('/rest/v1/user_data', {
       method: 'POST',
@@ -821,19 +865,37 @@ async function dbSave(key, value) {
 async function initApp() {
   document.getElementById('authOverlay').classList.add('hidden');
   document.getElementById('pageLoader').classList.add('show');
+  if (!cloudAvailable) {
+    document.querySelector('#pageLoader p').textContent = '正在加载本地数据...';
+  }
 
-  // Load all data from cloud
+  // Load all data
   await loadAllData();
 
   document.getElementById('pageLoader').classList.remove('show');
   document.getElementById('homePage').style.display = '';
   document.getElementById('dockBar').style.display = '';
 
+  // 离线提示
+  if (!cloudAvailable) {
+    showOfflineBanner();
+  }
+
   updateHeader();
   fetchWeather();
   renderTheme();
   renderMd();
   renderSecy();
+}
+
+function showOfflineBanner() {
+  const banner = document.createElement('div');
+  banner.id = 'offlineBanner';
+  banner.innerHTML = '📴 离线模式：数据保存在本地浏览器中。如需云端同步，请检查网络后刷新页面。';
+  banner.style.cssText = 'background:#FEF3C7;color:#92400E;padding:8px 16px;font-size:12px;text-align:center;position:fixed;top:0;left:0;right:0;z-index:600;';
+  document.body.appendChild(banner);
+  // 点击可关闭
+  banner.onclick = () => banner.remove();
 }
 
 async function loadAllData() {
