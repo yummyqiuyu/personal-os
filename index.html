@@ -793,17 +793,6 @@ async function logout() {
   location.reload();
 }
 
-  document.getElementById('pageLoader').classList.remove('show');
-  document.getElementById('homePage').style.display = '';
-  document.getElementById('dockBar').style.display = '';
-
-  updateHeader();
-  fetchWeather();
-  renderTheme();
-  renderMd();
-  renderSecy();
-}
-
 async function loadAllData() {
   const today = getToday();
 
