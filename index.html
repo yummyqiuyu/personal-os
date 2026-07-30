@@ -10,7 +10,7 @@
 <link rel="apple-touch-icon" href="app-icon-180.png">
 <link rel="manifest" href="manifest.json">
 <title>小悠 · Personal OS</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="supabase.js"></script>
 <style>
   :root {
     --bg: #F8F5F1;
@@ -644,7 +644,17 @@
 // ═══════════════════════════════════════════════════════════════
 const SUPABASE_URL = 'https://chdqesqtlgbmwoeubg.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_KstA9qxhRbB1dwcyGnlihA_pMn8tzWQ';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+let supabase = null;
+
+try {
+  if (typeof window.supabase === 'undefined' || !window.supabase.createClient) {
+    throw new Error('Supabase 库加载失败');
+  }
+  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+} catch (e) {
+  console.error('Supabase init error:', e);
+  document.getElementById('authError').textContent = '网络连接问题，请刷新页面重试';
+}
 
 let currentUser = null;
 let isAuthMode = 'login'; // 'login' or 'register'
