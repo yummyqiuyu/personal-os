@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>悠米 · 健康中心</title>
+<style>
+  :root {
+    --bg: #F8F5F1;
+    --card: #FFFFFF;
+    --text: #2C241A;
+    --text-muted: #8C8273;
+    --text-subtle: #B8B0A5;
+    --border: #E8E2D8;
+
+    --green: #4A6741; --green-bg: #EBF2E6;
+    --amber: #C4823D; --amber-bg: #FDF3E5;
+    --red: #B8453A; --red-bg: #FCEDEC;
+    --blue: #4A6FA5; --blue-bg: #EDF2F8;
+    --coral: #D86A4A; --coral-bg: #FDF0EA;
+    --sky: #0369A1; --sky-bg: #E0F2FE;
+    --pink: #BE185D; --pink-bg: #FCE7F3;
+    --mint: #0D9488; --mint-bg: #CCFBF1;
+    --yellow: #B45309; --yellow-bg: #FEF3C7;
+
+    --radius: 14px; --radius-sm: 10px;
+    --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: var(--font); background: var(--bg); color: var(--text);
+    -webkit-font-smoothing: antialiased; max-width: 640px; margin: 0 auto;
+    padding: 0 16px 80px;
+  }
+  .header {
+    position: sticky; top: 0; z-index: 10;
+    background: rgba(248,245,241,0.88);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    padding: 20px 0 12px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .header-avatar {
+    width: 44px; height: 44px; border-radius: 50%; overflow: hidden;
+    border: 2px solid var(--sky-bg); box-shadow: 0 2px 6px rgba(0,0,0,0.06); flex-shrink: 0;
+  }
+  .header-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .header-avatar.placeholder {
+    display: flex; align-items: center; justify-content: center; font-size: 22px;
+    background: linear-gradient(135deg, #FCE7F3, #EDF2F8);
+  }
+  .header-info { flex: 1; }
+  .header-name { font-size: 18px; font-weight: 700; }
+  .header-sub { font-size: 12px; color: var(--text-muted); }
+  .back-link {
+    font-size: 12px; color: var(--text-subtle); text-decoration: none;
+    display: flex; align-items: center; gap: 4px; flex-shrink: 0;
+  }
+  .back-link:hover { color: var(--text-muted); }
+
+  /* Score card */
+  .score-card {
+    background: var(--card); border-radius: var(--radius);
+    padding: 16px 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .score-row { display: flex; align-items: center; gap: 14px; cursor: pointer; }
+  .score-ring {
+    width: 56px; height: 56px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .score-ring-inner {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: white; display: flex; align-items: center; justify-content: center;
+    font-size: 20px; font-weight: 700;
+  }
+  .score-text { flex: 1; }
+  .score-title { font-size: 13px; font-weight: 600; }
+  .score-desc { font-size: 12px; color: var(--text-muted); margin-top: 2px; line-height: 1.4; }
+  .score-tap-hint { font-size: 10px; color: var(--text-subtle); margin-top: 3px; }
+  .score-breakdown { display: none; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
+  .score-breakdown.show { display: block; }
+  .score-line { font-size: 12px; padding: 3px 0; display: flex; align-items: center; gap: 6px; color: var(--text-muted); }
+  .score-line .sign { font-weight: 600; min-width: 28px; }
+  .score-line .sign.plus { color: var(--green); }
+  .score-line .sign.minus { color: var(--red); }
+
+  /* Alert row */
+  .alert-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .alert-chip {
+    font-size: 11px; padding: 4px 10px; border-radius: 20px; white-space: nowrap;
+  }
+  .alert-chip.warn { background: #FEF3C7; color: #92400E; }
+  .alert-chip.info { background: #E0F2FE; color: #0369A1; }
+  .alert-chip.good { background: #D1FAE5; color: #065F46; }
+  .alert-chip.rain { background: #E0F2FE; color: #0369A1; }
+
+  /* Todo priorities */
+  .todo-item { padding: 4px 0; display: flex; align-items: flex-start; gap: 6px; font-size: 13px; }
+  .todo-prio {
+    font-size: 11px; padding: 1px 8px; border-radius: 20px; flex-shrink: 0; margin-top: 1px;
+    white-space: nowrap;
+  }
+  .todo-prio.must { background: var(--red-bg); color: var(--red); }
+  .todo-prio.should { background: var(--amber-bg); color: var(--amber); }
+  .todo-prio.may { background: var(--sky-bg); color: var(--sky); }
+
+  /* Care checklist */
+  .care-section {
+    background: var(--card); border-radius: var(--radius);
+    padding: 16px 18px; margin-top: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .care-header { margin-bottom: 10px; }
+  .care-title { font-size: 14px; font-weight: 600; }
+  .care-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 0; border-bottom: 1px solid var(--border); cursor: pointer;
+  }
+  .care-item:last-child { border-bottom: none; }
+  .care-item.done { opacity: 0.5; }
+  .care-item.done .care-item-label { text-decoration: line-through; }
+  .care-check {
+    width: 20px; height: 20px; border-radius: 50%;
+    border: 2px solid var(--border); flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+  }
+  .care-check.checked { background: var(--green); border-color: var(--green); color: white; font-size: 11px; }
+  .care-item-icon { font-size: 18px; width: 24px; text-align: center; }
+  .care-item-body { flex: 1; }
+  .care-item-label { font-size: 13px; }
+  .care-item-weight {
+    font-size: 12px; color: var(--sky); cursor: pointer; flex-shrink: 0;
+  }
+  .care-item-delete {
+    font-size: 14px; color: var(--text-subtle); cursor: pointer; flex-shrink: 0;
+    padding: 4px;
+  }
+  .care-add {
+    font-size: 12px; color: var(--sky); cursor: pointer; border: none; background: none;
+    font-family: var(--font);
+  }
+  .care-add:hover { text-decoration: underline; }
+  .care-add-form {
+    margin-top: 10px; display: flex; gap: 8px;
+  }
+  .care-add-form input {
+    flex: 1; border: 1px solid var(--border); padding: 8px 10px;
+    border-radius: 8px; font-size: 13px; outline: none; font-family: var(--font);
+  }
+  .care-add-form input:focus { border-color: var(--sky); }
+
+  /* Condition cards */
+  .section { margin-top: 20px; }
+  .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .section-title { font-size: 14px; font-weight: 600; }
+  .section-add {
+    font-size: 12px; color: var(--sky); border: none; background: none;
+    cursor: pointer; font-family: var(--font);
+  }
+  .section-subtitle { font-size: 12px; color: var(--text-subtle); margin-bottom: 10px; }
+  .condition-card {
+    background: var(--card); border-radius: var(--radius-sm);
+    padding: 14px 16px; margin-top: 8px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    border-left: 3px solid var(--border); cursor: pointer;
+    position: relative;
+  }
+  .condition-card.stable { border-left-color: var(--green); }
+  .condition-card.info { border-left-color: var(--sky); }
+  .condition-card.warning { border-left-color: var(--amber); }
+  .condition-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  .condition-name { font-size: 14px; font-weight: 500; }
+  .badge {
+    font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: 20px; white-space: nowrap;
+  }
+  .badge-stable { background: var(--green-bg); color: var(--green); }
+  .badge-warning { background: var(--amber-bg); color: var(--amber); }
+  .badge-info { background: var(--sky-bg); color: var(--sky); }
+  .condition-desc { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+  .condition-detail { display: none; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); font-size: 13px; color: var(--text); line-height: 1.6; }
+  .condition-card.expanded .condition-detail { display: block; }
+  .condition-ai {
+    margin-top: 8px; padding: 10px 12px; background: var(--sky-bg);
+    border-radius: 8px; font-size: 12px; line-height: 1.6; color: var(--sky);
+  }
+  .condition-expand-hint {
+    font-size: 10px; color: var(--text-subtle); opacity: 0;
+    text-align: right; margin-top: 4px; transition: opacity 0.2s;
+  }
+  .condition-card:hover .condition-expand-hint { opacity: 1; }
+
+  /* Items */
+  .item-card {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 12px 14px; background: var(--card); border-radius: var(--radius-sm);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03); margin-top: 6px;
+  }
+  .item-card-icon {
+    width: 32px; height: 32px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0;
+  }
+  .item-card-icon.meds { background: var(--yellow-bg); }
+  .item-card-icon.supplement { background: var(--pink-bg); }
+  .item-card-icon.meal { background: var(--green-bg); }
+  .item-card-body { flex: 1; min-width: 0; }
+  .item-card-title { font-size: 13px; font-weight: 500; }
+  .item-card-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .item-card-note { font-size: 11px; color: var(--text-subtle); margin-top: 2px; }
+  .item-card-meta {
+    font-size: 10px; padding: 2px 8px; border-radius: 20px; flex-shrink: 0; margin-top: 2px;
+  }
+  .item-card-delete {
+    font-size: 14px; color: var(--text-subtle); cursor: pointer; flex-shrink: 0;
+    border: none; background: none; font-family: var(--font); padding: 2px;
+  }
+  .item-card-delete:hover { color: var(--red); }
+  .meds-status {
+    font-size: 10px; padding: 2px 8px; border-radius: 20px; margin-left: 6px;
+    cursor: pointer; flex-shrink: 0;
+  }
+  .meds-status.pending { background: var(--amber-bg); color: var(--amber); }
+  .meds-status.taken { background: var(--green-bg); color: var(--green); }
+  .meds-status.missed { background: var(--red-bg); color: var(--red); }
+
+  /* Add form */
+  .add-form {
+    display: none; padding: 14px; background: var(--card);
+    border-radius: var(--radius-sm); margin-top: 8px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+  }
+  .add-form-row { margin-bottom: 10px; }
+  .add-form-label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+  .add-form input, .add-form textarea {
+    width: 100%; border: 1px solid var(--border); padding: 8px 10px;
+    border-radius: 8px; font-size: 13px; outline: none; font-family: var(--font);
+  }
+  .add-form input:focus, .add-form textarea:focus { border-color: var(--sky); }
+  .add-form-actions { display: flex; gap: 8px; justify-content: flex-end; }
+  .btn {
+    padding: 8px 16px; border-radius: 8px; font-size: 13px; cursor: pointer;
+    border: none; font-family: var(--font);
+  }
+  .btn-primary { background: var(--sky); color: white; }
+  .btn-ghost { background: var(--border); color: var(--text-muted); }
+
+  /* Training */
+  .train-check-item {
+    display: flex; align-items: center; gap: 8px; padding: 8px 0;
+    border-bottom: 1px solid var(--border); font-size: 13px;
+  }
+  .train-check-item:last-child { border-bottom: none; }
+  .train-check-item.done .train-check-name { text-decoration: line-through; opacity: 0.5; }
+  .train-check-name { flex: 1; }
+  .train-check-type {
+    font-size: 10px; padding: 1px 6px; border-radius: 20px;
+    background: var(--sky-bg); color: var(--sky); flex-shrink: 0;
+  }
+  .training-stats {
+    margin-top: 8px; padding-top: 6px; border-top: 1px dashed var(--border);
+    font-size: 12px; color: var(--text-muted); display: flex; gap: 12px;
+  }
+
+  /* Goals */
+  .goal-card {
+    background: var(--card); border-radius: var(--radius-sm);
+    padding: 16px 18px; margin-top: 12px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+  }
+  .goal-item { margin-bottom: 14px; }
+  .goal-item:last-child { margin-bottom: 0; }
+  .goal-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 3px; }
+  .goal-name { font-size: 13px; font-weight: 500; }
+  .goal-trend { font-size: 12px; color: var(--text-muted); }
+  .trend-up { color: var(--green); }
+  .trend-down { color: var(--green); }
+  .trend-flat { color: var(--sky); }
+  .goal-detail { font-size: 12px; color: var(--text-muted); }
+
+  /* Changes card */
+  .changes-card {
+    margin-top: 12px; padding: 14px 16px;
+    background: var(--card); border-radius: var(--radius-sm);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    border-left: 3px solid var(--sky);
+  }
+  .changes-header { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  .change-line { font-size: 12px; padding: 3px 0; color: var(--text-muted); }
+  .change-line .good { color: var(--green); margin-right: 4px; }
+  .change-line .warn { color: var(--amber); margin-right: 4px; }
+
+  /* Anomaly */
+  .anomaly-card {
+    margin-top: 12px; padding: 14px 16px;
+    background: var(--card); border-radius: var(--radius-sm);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    border-left: 3px solid var(--coral);
+  }
+  .anomaly-card.empty { border-left-color: var(--border); }
+  .anomaly-header { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+  .anomaly-header .count { font-size: 11px; color: var(--text-muted); margin-left: 4px; font-weight: 400; }
+  .anomaly-item {
+    display: flex; align-items: flex-start; gap: 8px;
+    padding: 6px 0; font-size: 13px; border-bottom: 1px solid var(--border);
+  }
+  .anomaly-item:last-child { border-bottom: none; }
+  .anomaly-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+  .anomaly-text { flex: 1; }
+  .anomaly-time { font-size: 11px; color: var(--text-subtle); }
+  .anomaly-empty { font-size: 13px; color: var(--text-subtle); text-align: center; padding: 4px 0; }
+  .anomaly-add { margin-top: 10px; font-size: 12px; color: var(--coral); cursor: pointer; display: inline-block; }
+  .anomaly-add:hover { text-decoration: underline; }
+  .anomaly-add-form { margin-top: 10px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .anomaly-add-form input {
+    flex: 1; min-width: 140px; border: 1px solid var(--border);
+    padding: 8px 10px; border-radius: 8px; font-size: 13px; outline: none; font-family: var(--font);
+  }
+
+  /* Exam */
+  .exam-item {
+    padding: 14px 16px; background: var(--card); border-radius: var(--radius-sm);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03); margin-top: 8px;
+  }
+  .exam-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .exam-date { font-size: 13px; font-weight: 600; }
+  .exam-type { font-size: 11px; padding: 2px 8px; border-radius: 20px; background: var(--sky-bg); color: var(--sky); }
+  .exam-result-group { margin-top: 4px; }
+  .exam-result { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; font-size: 13px; }
+  .exam-result-name { color: var(--text-muted); }
+  .exam-result-value { font-weight: 500; }
+  .exam-result-value.high { color: var(--amber); }
+  .exam-result-value.normal { color: var(--green); }
+  .exam-note { font-size: 12px; color: var(--text-muted); margin-top: 6px; border-top: 1px solid var(--border); padding-top: 6px; }
+  .exam-add-form {
+    margin-top: 10px; padding: 14px; background: var(--card);
+    border-radius: var(--radius-sm); box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+  }
+  .exam-add-form .add-form-row { margin-bottom: 10px; }
+  .exam-add-form .add-form-label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+  .exam-add-form input, .exam-add-form textarea {
+    width: 100%; border: 1px solid var(--border); padding: 8px 10px;
+    border-radius: 8px; font-size: 13px; outline: none; font-family: var(--font);
+  }
+  .exam-result-rows { margin-top: 8px; }
+  .exam-result-row { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+  .exam-result-row input { flex: 1; }
+  .exam-result-row .btn-sm {
+    padding: 4px 8px; font-size: 11px; border-radius: 6px; border: none;
+    cursor: pointer; background: var(--red-bg); color: var(--red); font-family: var(--font);
+  }
+
+  .page-footer { text-align: center; margin-top: 36px; font-size: 11px; color: var(--text-subtle); }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  .section, .score-card, .care-section, .goal-card { animation: fadeIn 0.3s ease both; }
+</style>
+</head>
+<body>
+
+<!-- ====== Header ====== -->
+<div class="header">
+  <div class="header-avatar" id="youmiAvatar"><img src="youmi-avatar.jpg" alt="悠米"></div>
+  <div class="header-info">
+    <div class="header-name">悠米</div>
+    <div class="header-sub">边境牧羊犬 · 12岁 · ♀</div>
+  </div>
+  <a href="index.html" class="back-link">← 首页</a>
+</div>
+
+<!-- ====== 今日健康中心 ====== -->
+<div class="score-card">
+  <div class="score-row" onclick="toggleScoreBreakdown()">
+    <div class="score-ring" id="scoreRing">
+      <div class="score-ring-inner" id="scoreNum">92</div>
+    </div>
+    <div class="score-text">
+      <div class="score-title">今日健康评分</div>
+      <div class="score-desc">整体稳定 · 肝结节无变化 · 状态良好</div>
+      <div class="score-tap-hint">点击查看评分明细</div>
+    </div>
+  </div>
+  <div class="score-breakdown" id="scoreBreakdown">
+    <div class="score-line"><span class="sign plus">+25</span> <span>肝结节长期稳定</span></div>
+    <div class="score-line"><span class="sign plus">+25</span> <span>脾结节长期稳定</span></div>
+    <div class="score-line"><span class="sign plus">+20</span> <span>肝酶已恢复正常</span></div>
+    <div class="score-line"><span class="sign plus">+15</span> <span>精神食欲良好</span></div>
+    <div class="score-line"><span class="sign minus">-5</span> <span>需持续监测肝酶</span></div>
+    <div class="score-line" style="border-top:1px solid var(--border);margin-top:4px;padding-top:6px;"><span class="sign" style="font-weight:700;">=</span> <span style="font-weight:600;">92</span></div>
+  </div>
+
+  <!-- 今日重要事项 -->
+  <div style="margin-top:12px;padding:12px 14px;background:var(--sky-bg);border-radius:var(--radius-sm);">
+    <div style="font-size:12px;font-weight:600;color:var(--sky);margin-bottom:6px;">📋 今日关注</div>
+    <div class="todo-item"><span class="todo-prio should">⚠ 建议</span> 记录饮水量（200-600mL 参考范围）</div>
+    <div class="todo-item"><span class="todo-prio may">💡 关注</span> 定期体检时复查肝结节超声</div>
+  </div>
+
+  <!-- 风险 & 提醒 -->
+  <div class="alert-row" id="alertRow">
+    <div class="alert-chip good">✅ 整体状况稳定</div>
+    <div class="alert-chip info">🩺 肝结节 · 定期超声监测</div>
+    <div class="alert-chip info">🩺 脾结节 · 稳定观察中</div>
+  </div>
+</div>
+
+<!-- ====== 今日变化 ====== -->
+<div class="changes-card">
+  <div class="changes-header">📈 相比昨天</div>
+  <div class="change-line"><span class="good">✔</span> 状态平稳，无异常</div>
+  <div class="change-line"><span class="good">✔</span> 饮水量正常范围</div>
+  <div class="change-line">无新增异常</div>
+</div>
+
+<!-- ====== 今日异常 ====== -->
+<div class="anomaly-card" id="anomalyCard">
+  <div class="anomaly-header">⚠️ 今日异常<span class="count" id="anomalyCount"></span></div>
+  <div id="anomalyList"></div>
+  <div class="anomaly-add-form" id="anomalyAddForm" style="display:none;">
+    <input id="anomalyInput" placeholder="描述异常，如：饮水突然增多..." onkeydown="if(event.key==='Enter')addAnomaly()">
+    <button class="btn btn-primary" onclick="addAnomaly()" style="padding:8px 14px;font-size:12px;">记录</button>
+    <button class="btn btn-ghost" onclick="cancelAnomaly()" style="padding:8px 14px;font-size:12px;">取消</button>
+  </div>
+  <div class="anomaly-add" onclick="showAnomalyForm()" id="anomalyAddBtn">+ 记录异常</div>
+</div>
+
+<!-- ====== 今日护理 ====== -->
+<div class="care-section">
+  <div class="care-header"><div class="care-title">☀️ 今日护理</div></div>
+  <div id="careList"></div>
+  <div class="care-add-form" id="careAddForm" style="display:none;">
+    <input id="careNewName" placeholder="添加护理项..." onkeydown="if(event.key==='Enter')addCareItem()">
+    <button class="btn btn-primary" onclick="addCareItem()" style="padding:8px 14px;font-size:12px;">添加</button>
+  </div>
+  <div style="text-align:center;margin-top:10px;">
+    <button class="care-add" onclick="toggleCareAddForm()">+ 添加护理项</button>
+  </div>
+</div>
+
+<!-- ====== 训练中心 ====== -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-title">🏋️ 训练中心</div>
+    <button class="section-add" onclick="showAddForm('trainForm')">+ 添加训练项</button>
+  </div>
+  <div class="condition-card" style="border-left-color:var(--sky);cursor:default;">
+    <div id="trainCheckList"></div>
+    <div class="training-stats" id="trainStats">
+      <span>今日完成：<strong id="trainDone">0</strong>/<span id="trainTotal">0</span></span>
+    </div>
+  </div>
+  <div class="add-form" id="trainForm">
+    <div class="add-form-row"><label class="add-form-label">训练类型</label><input id="trainType" placeholder="🧠 脑力训练 或 🦴 犬健身"></div>
+    <div class="add-form-row"><label class="add-form-label">训练名称</label><input id="trainName" placeholder="训练名称"></div>
+    <div class="add-form-row"><label class="add-form-label">描述</label><textarea id="trainDesc" placeholder="训练要点..."></textarea></div>
+    <div class="add-form-row"><label class="add-form-label">频率</label><input id="trainFreq" placeholder="每天1次 / 每周3次"></div>
+    <div class="add-form-actions">
+      <button class="btn btn-ghost" onclick="hideAddForm('trainForm')">取消</button>
+      <button class="btn btn-primary" onclick="addItem('train')">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== 长期目标 ====== -->
+<div class="goal-card" id="goalCard">
+  <div class="section-header" style="margin-bottom:12px;">
+    <div class="section-title">🎯 长期目标</div>
+  </div>
+  <div class="goal-item">
+    <div class="goal-top">
+      <span class="goal-name">肝结节监测</span>
+      <span class="goal-trend"><span class="trend-flat">→</span> 长期稳定</span>
+    </div>
+    <div class="goal-detail">约3年前发现2个肝结节，CT显示基本无血供，持��稳定</div>
+  </div>
+  <div class="goal-item">
+    <div class="goal-top">
+      <span class="goal-name">脾结节监测</span>
+      <span class="goal-trend"><span class="trend-flat">→</span> 长期稳定</span>
+    </div>
+    <div class="goal-detail">1个脾结节，持续稳定观察中</div>
+  </div>
+  <div class="goal-item">
+    <div class="goal-top">
+      <span class="goal-name">肝酶持续正常</span>
+      <span class="goal-trend"><span class="trend-up">↑</span> 已恢复正常</span>
+    </div>
+    <div class="goal-detail">ALT曾 >1000 现已恢复正常，持续监测</div>
+  </div>
+</div>
+
+<!-- ====== 健康状况 ====== -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-title">📋 长期监测</div>
+  </div>
+  <div class="section-subtitle">需持续关注，但当前稳定</div>
+
+  <div class="condition-card info" onclick="toggleCard(this)">
+    <div class="condition-top">
+      <span class="condition-name">肝脏结节</span>
+      <span class="badge badge-info">长期监测</span>
+    </div>
+    <div class="condition-desc">约3年前发现 · 2个结节 · CT基本无血供 · 长期稳定</div>
+    <div class="condition-detail">
+      约三年前CT检查发现两个肝结节，影像显示基本没有血供，长期保持稳定。
+      <div class="condition-ai">
+        <strong>🤖 AI 建议：</strong>目前稳定，无需特殊处理。重点：①定期超声复查（建议每年1次）②持续监测肝酶指标 ③如出现食欲下降或精神差需及时检查。
+      </div>
+    </div>
+    <div class="condition-expand-hint">▸ 详情 + AI建议</div>
+  </div>
+
+  <div class="condition-card info" onclick="toggleCard(this)">
+    <div class="condition-top">
+      <span class="condition-name">脾脏结节</span>
+      <span class="badge badge-info">长期监测</span>
+    </div>
+    <div class="condition-desc">1个结节 · 长期稳定观察中</div>
+    <div class="condition-detail">
+      脾脏发现一个结节，同样长期保持稳定。
+      <div class="condition-ai">
+        <strong>🤖 AI 建议：</strong>与肝结节一同定期超声监测即可，目前无风险信号。
+      </div>
+    </div>
+    <div class="condition-expand-hint">▸ 详情 + AI建议</div>
+  </div>
+
+  <div class="condition-card warning" onclick="toggleCard(this)">
+    <div class="condition-top">
+      <span class="condition-name">肝酶监测</span>
+      <span class="badge badge-warning">曾异常 · 已恢复</span>
+    </div>
+    <div class="condition-desc">ALT 曾 >1000 · 现已恢复正常 · 持续观察</div>
+    <div class="condition-detail">
+      曾经 ALT 一度超过 1000，之后恢复正常水平。目前持续观察中，暂无异常。
+      <div class="condition-ai">
+        <strong>🤖 AI 建议：</strong>肝酶已恢复是积极信号。重点：①定期复查肝功能 ②注意饮食中避免对肝脏有负担的成分 ③如发现精神差、食欲下降需警惕。
+      </div>
+    </div>
+    <div class="condition-expand-hint">▸ 详情 + AI建议</div>
+  </div>
+
+  <div class="condition-card stable" onclick="toggleCard(this)">
+    <div class="condition-top">
+      <span class="condition-name">蜱虫叮咬史</span>
+      <span class="badge badge-stable">已处理</span>
+    </div>
+    <div class="condition-desc">前段时间胸前发现 · 已及时处理 · 注意定期检查</div>
+  </div>
+</div>
+
+<!-- ====== 体检记录 ====== -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-title">🩺 体检记录</div>
+    <button class="section-add" onclick="showExamForm()">+ 添加记录</button>
+  </div>
+  <div class="section-subtitle">历次检查结果、时间、指标变化</div>
+  <div id="examList"></div>
+  <div class="exam-add-form" id="examAddForm" style="display:none;">
+    <div class="add-form-row"><label class="add-form-label">检查日期</label><input id="examDate" type="date"></div>
+    <div class="add-form-row"><label class="add-form-label">检查类型</label><input id="examType" placeholder="例如：肝功能、超声、CT..."></div>
+    <div class="add-form-row">
+      <label class="add-form-label">检查结果</label>
+      <div class="exam-result-rows" id="examResultRows">
+        <div class="exam-result-row" style="color:var(--text-subtle);font-size:12px;">下方逐项添加指标 →</div>
+      </div>
+      <button class="btn btn-ghost" onclick="addExamResultRow()" style="margin-top:6px;font-size:12px;padding:4px 10px;">+ 添加指标</button>
+    </div>
+    <div class="add-form-row"><label class="add-form-label">备注</label><textarea id="examNote" placeholder="检查结论、医生建议..."></textarea></div>
+    <div class="add-form-actions">
+      <button class="btn btn-ghost" onclick="hideExamForm()">取消</button>
+      <button class="btn btn-primary" onclick="saveExam()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== 保健品 ====== -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-title">🌸 保健品 & 营养补充</div>
+    <button class="section-add" onclick="showAddForm('suppForm')">+ 添加</button>
+  </div>
+  <div id="suppList"></div>
+  <div class="add-form" id="suppForm">
+    <div class="add-form-row"><label class="add-form-label">名称</label><input id="suppName" placeholder="例如：胆碱补充剂"></div>
+    <div class="add-form-row"><label class="add-form-label">剂量</label><input id="suppDose" placeholder="例如：每天1粒"></div>
+    <div class="add-form-row"><label class="add-form-label">用途 / 目标</label><input id="suppPurpose" placeholder="例如：肝胆支持"></div>
+    <div class="add-form-actions">
+      <button class="btn btn-ghost" onclick="hideAddForm('suppForm')">取消</button>
+      <button class="btn btn-primary" onclick="addItem('supp')">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== 饮食 ====== -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-title">🍖 每日饮食 & 食谱</div>
+    <button class="section-add" onclick="showAddForm('mealForm')">+ 添加</button>
+  </div>
+  <div id="mealList"></div>
+  <div class="add-form" id="mealForm">
+    <div class="add-form-row"><label class="add-form-label">餐食名称</label><input id="mealName" placeholder="例如：早餐 · 自制鲜食"></div>
+    <div class="add-form-row"><label class="add-form-label">食材</label><textarea id="mealIngredients" placeholder="主要食材和配比..."></textarea></div>
+    <div class="add-form-row"><label class="add-form-label">注意事项</label><input id="mealNote" placeholder="例如：低脂、注意肝脏负担"></div>
+    <div class="add-form-actions">
+      <button class="btn btn-ghost" onclick="hideAddForm('mealForm')">取消</button>
+      <button class="btn btn-primary" onclick="addItem('meal')">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="page-footer">悠米健康中心 v0.1</div>
+
+<script>
+// ==================== DATA STORE ====================
+const STORAGE_KEY = 'youmi_health_v1';
+const CARE_STATE_KEY = 'youmi_care_v1';
+const TRAIN_STATE_KEY = 'youmi_train_v1';
+const ANOMALY_KEY = 'youmi_anomaly_v1';
+const EXAM_KEY = 'youmi_exam_v1';
+
+const defaultData = {
+  weight: null, weightDate: null,
+  meds: [],
+  supp: [],
+  meal: [],
+  train: [
+    { id: 't1', type: '🧠 脑力训练', name: '嗅闻垫寻食', freq: '每天1次', desc: '保持大脑活跃' },
+    { id: 't2', type: '🧠 脑力训练', name: '新指令学习', freq: '每周2-3次', desc: '保持学习能力' },
+    { id: 't3', type: '🦴 体能活动', name: '散步', freq: '每天1-2次', desc: '保持基础活动量' }
+  ],
+  careItems: [
+    { id: 'brush', icon: '🪥', name: '刷牙', fixed: true },
+    { id: 'weight_check', icon: '⚖️', name: '体重记录', fixed: true, isWeight: true },
+    { id: 'c_hair', icon: '🧴', name: '梳毛', fixed: false },
+    { id: 'c_ear', icon: '🧴', name: '清洁耳朵', fixed: false }
+  ]
+};
+
+function loadData() {
+  try { const r = localStorage.getItem(STORAGE_KEY); if (r) return { ...defaultData, ...JSON.parse(r) }; } catch(e){}
+  return { ...defaultData };
+}
+function saveData(d) { localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); }
+let data = loadData();
+
+// ==================== HEALTH SCORE ====================
+function updateHealthScore() {
+  let score = 92;
+  const ring = document.getElementById('scoreRing');
+  const deg = (score / 100) * 360;
+  const color = score >= 80 ? 'var(--green)' : score >= 60 ? 'var(--amber)' : 'var(--red)';
+  ring.style.background = `conic-gradient(${color} 0deg, ${color} ${deg}deg, var(--border) ${deg}deg, var(--border) 360deg)`;
+  document.getElementById('scoreNum').textContent = score;
+  document.getElementById('scoreNum').style.color = color;
+}
+
+function toggleScoreBreakdown() {
+  document.getElementById('scoreBreakdown').classList.toggle('show');
+}
+
+// ==================== CARE ====================
+function getToday() { return new Date().toISOString().slice(0, 10); }
+function loadCareState() {
+  try { const r = localStorage.getItem(CARE_STATE_KEY); if (r) { const p = JSON.parse(r); if (p.date === getToday()) return p; } } catch(e){}
+  return { date: getToday(), completed: {}, weights: {} };
+}
+function saveCareState(s) { localStorage.setItem(CARE_STATE_KEY, JSON.stringify(s)); }
+let careState = loadCareState();
+
+function renderCareList() {
+  const c = document.getElementById('careList');
+  c.innerHTML = data.careItems.map(item => {
+    const done = careState.completed[item.id];
+    if (item.isWeight) {
+      const w = careState.weights[getToday()];
+      return `<div class="care-item ${done?'done':''}">
+        <div class="care-item-icon">${item.icon}</div>
+        <div class="care-item-body"><div class="care-item-label">${escHtml(item.name)}</div></div>
+        <span class="care-item-weight" onclick="event.stopPropagation();recordWeight('${item.id}')">${w ? w+' kg' : '点击记录'}</span>
+        ${item.fixed ? '' : `<button class="care-item-delete" onclick="event.stopPropagation();deleteCare('${item.id}')">✕</button>`}
+      </div>`;
+    }
+    return `<div class="care-item ${done?'done':''}" onclick="toggleCare('${item.id}')">
+      <div class="care-check ${done?'checked':''}">${done?'✓':''}</div>
+      <div class="care-item-icon">${item.icon}</div>
+      <div class="care-item-body"><div class="care-item-label">${escHtml(item.name)}</div></div>
+      ${item.fixed ? '' : `<button class="care-item-delete" onclick="event.stopPropagation();deleteCare('${item.id}')">✕</button>`}
+    </div>`;
+  }).join('');
+}
+
+function toggleCare(id) { careState.completed[id] = !careState.completed[id]; saveCareState(careState); renderCareList(); }
+function deleteCare(id) { data.careItems = data.careItems.filter(i => i.id !== id); saveData(data); renderCareList(); }
+function recordWeight(id) {
+  const w = prompt('输入体重 (kg)：');
+  if (w && !isNaN(parseFloat(w))) { careState.weights[getToday()] = parseFloat(w); careState.completed[id] = true; saveCareState(careState); renderCareList(); }
+}
+function toggleCareAddForm() {
+  const f = document.getElementById('careAddForm');
+  f.style.display = f.style.display === 'flex' ? 'none' : 'flex';
+}
+function addCareItem() {
+  const input = document.getElementById('careNewName');
+  const name = input.value.trim();
+  if (!name) return;
+  data.careItems.push({ id: 'c_' + Date.now(), icon: '🧴', name, fixed: false });
+  saveData(data);
+  input.value = '';
+  document.getElementById('careAddForm').style.display = 'none';
+  renderCareList();
+}
+
+// ==================== TRAINING ====================
+function loadTrainState() {
+  try { const r = localStorage.getItem(TRAIN_STATE_KEY); if (r) { const p = JSON.parse(r); if (p.date === getToday()) return p; } } catch(e){}
+  return { date: getToday(), completed: {} };
+}
+function saveTrainState(s) { localStorage.setItem(TRAIN_STATE_KEY, JSON.stringify(s)); }
+let trainState = loadTrainState();
+
+function renderTrainChecklist() {
+  const el = document.getElementById('trainCheckList');
+  let done = 0;
+  el.innerHTML = data.train.map(t => {
+    const isDone = trainState.completed[t.id];
+    if (isDone) done++;
+    return `<div class="train-check-item ${isDone?'done':''}" onclick="toggleTrain('${t.id}')">
+      <div class="care-check ${isDone?'checked':''}">${isDone?'✓':''}</div>
+      <span class="train-check-name">${escHtml(t.name)}</span>
+      <span class="train-check-type">${escHtml(t.type)}</span>
+    </div>`;
+  }).join('');
+  document.getElementById('trainDone').textContent = done;
+  document.getElementById('trainTotal').textContent = data.train.length;
+}
+
+function toggleTrain(id) { trainState.completed[id] = !trainState.completed[id]; saveTrainState(trainState); renderTrainChecklist(); }
+
+// ==================== ITEMS ====================
+function renderList(cid, items, type) {
+  const c = document.getElementById(cid);
+  const friendlyNames = { supp: '保健品', meal: '饮食记录', meds: '用药记录' };
+  if (!items.length) {
+    c.innerHTML = `<div style="padding:16px;text-align:center;font-size:13px;color:var(--text-subtle);background:var(--card);border-radius:var(--radius-sm);">还没有${friendlyNames[type] || ''}记录 · <span style="color:var(--sky);cursor:pointer;" onclick="showAddForm('${type}Form')">+ 添加第一种${friendlyNames[type] || ''}</span></div>`;
+    return;
+  }
+  c.innerHTML = items.map(i => {
+    const metaHTML = type === 'meds' ? `<span class="meds-status ${i.status || 'pending'}" onclick="event.stopPropagation();cycleMedsStatus('${i.id}')">${i.status === 'taken' ? '🟢 已按时' : i.status === 'missed' ? '🔴 漏服' : '🟡 即将服药'}</span>` : '';
+    return `<div class="item-card">
+      <div class="item-card-icon ${type === 'meds' ? 'meds' : type === 'supp' ? 'supplement' : 'meal'}">${type === 'meds' ? '💊' : type === 'supp' ? '🌸' : '🍖'}</div>
+      <div class="item-card-body">
+        <div class="item-card-title">${escHtml(i.name)}${metaHTML}</div>
+        ${i.dose ? `<div class="item-card-sub">${escHtml(i.dose)}</div>` : ''}
+        ${i.related ? `<div class="item-card-note">关联：${escHtml(i.related)}</div>` : ''}
+        ${i.purpose ? `<div class="item-card-sub">${escHtml(i.purpose)}</div>` : ''}
+        ${i.ingredients ? `<div class="item-card-note">食材：${escHtml(i.ingredients)}</div>` : ''}
+        ${i.note ? `<div class="item-card-note">${escHtml(i.note)}</div>` : ''}
+      </div>
+      <button class="item-card-delete" onclick="event.stopPropagation();deleteItem('${type}','${i.id}')">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function showAddForm(formId) { document.getElementById(formId).style.display = 'block'; document.getElementById(formId).scrollIntoView({ behavior: 'smooth' }); }
+function hideAddForm(formId) { document.getElementById(formId).style.display = 'none'; }
+
+function addItem(type) {
+  const item = { id: type[0] + Date.now() };
+  switch(type) {
+    case 'meds': item.name = document.getElementById('medsName')?.value; item.dose = document.getElementById('medsDose')?.value; item.related = document.getElementById('medsRelated')?.value; item.status = 'pending'; break;
+    case 'supp': item.name = document.getElementById('suppName')?.value; item.dose = document.getElementById('suppDose')?.value; item.purpose = document.getElementById('suppPurpose')?.value; break;
+    case 'meal': item.name = document.getElementById('mealName')?.value; item.ingredients = document.getElementById('mealIngredients')?.value; item.note = document.getElementById('mealNote')?.value; break;
+    case 'train': item.type = document.getElementById('trainType')?.value; item.name = document.getElementById('trainName')?.value; item.desc = document.getElementById('trainDesc')?.value; item.freq = document.getElementById('trainFreq')?.value; break;
+  }
+  if (!item.name) { alert('请填写名称'); return; }
+  data[type].push(item);
+  saveData(data);
+  hideAddForm(type + 'Form');
+  const formId = type + 'Form';
+  ['Name','Dose','Related','Purpose','Ingredients','Note','Type','Desc','Freq'].forEach(s => {
+    const el = document.getElementById(type + s);
+    if (el) el.value = '';
+  });
+  type === 'train' ? renderTrainChecklist() : renderList(type+'List', data[type], type);
+}
+
+function deleteItem(type, id) {
+  data[type] = data[type].filter(i => i.id !== id);
+  saveData(data);
+  type === 'train' ? renderTrainChecklist() : renderList(type+'List', data[type], type);
+}
+
+function cycleMedsStatus(id) {
+  const item = data.meds.find(m => m.id === id);
+  if (!item) return;
+  const order = ['pending', 'taken', 'missed'];
+  const idx = order.indexOf(item.status || 'pending');
+  item.status = order[(idx + 1) % 3];
+  saveData(data);
+  renderList('medsList', data.meds, 'meds');
+}
+
+// ==================== ANOMALIES ====================
+function loadAnomalies() {
+  try { const r = localStorage.getItem(ANOMALY_KEY); if (r) { const p = JSON.parse(r); if (p.date === getToday()) return p.items; } } catch(e){}
+  return [];
+}
+function saveAnomalies(items) { localStorage.setItem(ANOMALY_KEY, JSON.stringify({ date: getToday(), items })); }
+let anomalies = loadAnomalies();
+
+function renderAnomalies() {
+  const card = document.getElementById('anomalyCard');
+  const list = document.getElementById('anomalyList');
+  const count = document.getElementById('anomalyCount');
+  if (anomalies.length === 0) {
+    card.classList.add('empty');
+    count.textContent = '';
+    list.innerHTML = '<div class="anomaly-empty">今日无异常记录 ✨</div>';
+  } else {
+    card.classList.remove('empty');
+    count.textContent = '(' + anomalies.length + '项)';
+    list.innerHTML = anomalies.map((a, i) => `
+      <div class="anomaly-item">
+        <span class="anomaly-icon">${a.icon || '⚠️'}</span>
+        <div class="anomaly-text"><div>${escHtml(a.text)}</div><div class="anomaly-time">${a.time || ''}</div></div>
+        <button class="item-card-delete" onclick="event.stopPropagation();deleteAnomaly(${i})">✕</button>
+      </div>`).join('');
+  }
+}
+
+function showAnomalyForm() { document.getElementById('anomalyAddForm').style.display = 'flex'; document.getElementById('anomalyInput').focus(); }
+function cancelAnomaly() { document.getElementById('anomalyAddForm').style.display = 'none'; document.getElementById('anomalyInput').value = ''; }
+function addAnomaly() {
+  const input = document.getElementById('anomalyInput');
+  const text = input.value.trim();
+  if (!text) return;
+  const now = new Date();
+  const time = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+  anomalies.push({ text, time, icon: '⚠️' });
+  saveAnomalies(anomalies);
+  input.value = '';
+  document.getElementById('anomalyAddForm').style.display = 'none';
+  renderAnomalies();
+}
+function deleteAnomaly(i) { anomalies.splice(i, 1); saveAnomalies(anomalies); renderAnomalies(); }
+
+// ==================== EXAMS ====================
+function loadExams() { try { const r = localStorage.getItem(EXAM_KEY); if (r) return JSON.parse(r); } catch(e){} return []; }
+function saveExams(e) { localStorage.setItem(EXAM_KEY, JSON.stringify(e)); }
+let exams = loadExams();
+
+function renderExams() {
+  const el = document.getElementById('examList');
+  if (exams.length === 0) {
+    el.innerHTML = '<div style="padding:20px;text-align:center;font-size:13px;color:var(--text-subtle);background:var(--card);border-radius:var(--radius-sm);margin-top:8px;">还没有体检记录 · 点击「+ 添加记录」填写第一次</div>';
+    return;
+  }
+  el.innerHTML = exams.map((e, i) => {
+    const resultsHTML = (e.results || []).map(r => {
+      const cls = r.status === 'high' ? 'high' : r.status === 'low' ? 'high' : 'normal';
+      return `<div class="exam-result"><span class="exam-result-name">${escHtml(r.name)}</span><span class="exam-result-value ${cls}">${escHtml(r.value)}${r.unit ? ' ' + escHtml(r.unit) : ''}</span></div>`;
+    }).join('');
+    return `<div class="exam-item">
+      <div class="exam-top"><span class="exam-date">📅 ${escHtml(e.date)}</span><span class="exam-type">${escHtml(e.type)}</span></div>
+      <div class="exam-result-group">${resultsHTML}</div>
+      ${e.note ? '<div class="exam-note">💬 ' + escHtml(e.note) + '</div>' : ''}
+      <div style="text-align:right;margin-top:4px;"><button class="item-card-delete" onclick="deleteExam(${i})" style="font-size:11px;">✕ 删除</button></div>
+    </div>`;
+  }).join('');
+}
+
+function showExamForm() {
+  document.getElementById('examAddForm').style.display = 'block';
+  document.getElementById('examDate').value = getToday();
+  document.getElementById('examResultRows').innerHTML = '<div class="exam-result-row" style="color:var(--text-subtle);font-size:12px;">下方逐项添加指标 →</div>';
+  document.getElementById('examType').value = '';
+  document.getElementById('examNote').value = '';
+  document.getElementById('examAddForm').scrollIntoView({ behavior: 'smooth' });
+}
+function hideExamForm() { document.getElementById('examAddForm').style.display = 'none'; }
+function addExamResultRow() {
+  const container = document.getElementById('examResultRows');
+  const placeholder = container.querySelector('.exam-result-row[style]');
+  if (placeholder && placeholder.textContent.includes('下方逐项')) placeholder.remove();
+  const row = document.createElement('div');
+  row.className = 'exam-result-row';
+  row.innerHTML = `
+    <input placeholder="指标名（如：ALT）" class="exam-rname">
+    <input placeholder="结果（如：600）" class="exam-rval">
+    <input placeholder="单位（如：U/L）" class="exam-runit" style="max-width:70px;">
+    <select class="exam-rstatus" style="border:1px solid var(--border);padding:6px;border-radius:6px;font-size:12px;font-family:var(--font);">
+      <option value="normal">正常 🟢</option><option value="high">偏高 🟡</option><option value="low">偏低 🔴</option>
+    </select>
+    <button class="btn-sm" onclick="this.parentElement.remove()">✕</button>
+  `;
+  container.appendChild(row);
+}
+function saveExam() {
+  const date = document.getElementById('examDate').value;
+  const type = document.getElementById('examType').value.trim();
+  const note = document.getElementById('examNote').value.trim();
+  if (!date || !type) { alert('请至少填写日期和检查类型'); return; }
+  const results = [];
+  document.getElementById('examResultRows').querySelectorAll('.exam-result-row').forEach(row => {
+    const name = row.querySelector('.exam-rname')?.value?.trim();
+    const value = row.querySelector('.exam-rval')?.value?.trim();
+    const unit = row.querySelector('.exam-runit')?.value?.trim();
+    const status = row.querySelector('.exam-rstatus')?.value || 'normal';
+    if (name && value) results.push({ name, value, unit, status });
+  });
+  exams.push({ date, type, results, note });
+  exams.sort((a, b) => new Date(b.date) - new Date(a.date));
+  saveExams(exams);
+  hideExamForm();
+  renderExams();
+}
+function deleteExam(i) { exams.splice(i, 1); saveExams(exams); renderExams(); }
+
+// ==================== CONDITION CARDS ====================
+function toggleCard(card) { card.classList.toggle('expanded'); }
+
+// ==================== UTILS ====================
+function escHtml(s) { return s ? s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : ''; }
+
+// ==================== INIT ====================
+function refreshAll() {
+  updateHealthScore();
+  renderCareList();
+  renderTrainChecklist();
+  renderList('suppList', data.supp, 'supp');
+  renderList('mealList', data.meal, 'meal');
+  renderAnomalies();
+  renderExams();
+}
+refreshAll();
+</script>
+</body>
+</html>

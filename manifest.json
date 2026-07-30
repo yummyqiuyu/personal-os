@@ -1,0 +1,21 @@
+{
+  "name": "小悠 · Personal OS",
+  "short_name": "小悠 OS",
+  "description": "AI驱动的人生操作系统",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FEF3C7",
+  "theme_color": "#FEF3C7",
+  "icons": [
+    {
+      "src": "app-icon-180.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "app-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

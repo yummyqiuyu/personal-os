@@ -1,0 +1,1625 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="小悠 OS">
+<meta name="theme-color" content="#FEF3C7">
+<link rel="apple-touch-icon" href="app-icon-180.png">
+<link rel="manifest" href="manifest.json">
+<title>小悠 · Personal OS</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+  :root {
+    --bg: #F8F5F1;
+    --card: #FFFFFF;
+    --text: #2C241A;
+    --text-muted: #8C8273;
+    --text-subtle: #B8B0A5;
+    --border: #E8E2D8;
+    --green: #4A6741; --green-bg: #EBF2E6;
+    --amber: #C4823D; --amber-bg: #FDF3E5;
+    --red: #B8453A; --red-bg: #FCEDEC;
+    --sky: #0369A1; --sky-bg: #E0F2FE;
+    --coral: #D86A4A; --coral-bg: #FDF0EA;
+    --yellow: #B45309; --yellow-bg: #FEF3C7;
+    --purple: #7C3AED; --purple-bg: #EDE9FE;
+    --pink: #BE185D; --pink-bg: #FCE7F3;
+    --radius-sm: 10px;
+    --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: var(--font); background: var(--bg); color: var(--text);
+    -webkit-font-smoothing: antialiased; max-width: 440px; margin: 0 auto;
+    padding: 0 16px 0; min-height: 100vh; overflow-x: hidden;
+    -webkit-user-select: none; user-select: none;
+  }
+
+  /* ═══ Auth Overlay ═══ */
+  .auth-overlay {
+    position: fixed; inset: 0; z-index: 500;
+    background: var(--bg);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 24px; text-align: center;
+  }
+  .auth-overlay.hidden { display: none; }
+  .auth-logo {
+    width: 80px; height: 80px; border-radius: 20px;
+    background: linear-gradient(135deg, var(--purple), var(--sky));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 40px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(124,58,237,0.2);
+  }
+  .auth-title { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+  .auth-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 28px; }
+  .auth-form { width: 100%; max-width: 320px; }
+  .auth-input {
+    width: 100%; padding: 14px 16px; border: 1px solid var(--border);
+    border-radius: 12px; font-size: 15px; font-family: var(--font); margin-bottom: 10px;
+    outline: none; background: var(--card);
+  }
+  .auth-input:focus { border-color: var(--purple); }
+  .auth-btn {
+    width: 100%; padding: 14px; border: none; border-radius: 12px;
+    font-size: 15px; font-weight: 600; font-family: var(--font);
+    cursor: pointer; margin-bottom: 10px; transition: opacity 0.15s;
+  }
+  .auth-btn.primary { background: var(--purple); color: #fff; }
+  .auth-btn.ghost { background: var(--border); color: var(--text-muted); }
+  .auth-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .auth-switch { font-size: 13px; color: var(--text-muted); margin-top: 8px; }
+  .auth-switch a { color: var(--purple); cursor: pointer; font-weight: 500; }
+  .auth-error { font-size: 12px; color: var(--red); margin-bottom: 10px; }
+  .auth-success { font-size: 12px; color: var(--green); margin-bottom: 10px; }
+
+  /* ═══ Loading Spinner ═══ */
+  .page-loader {
+    position: fixed; inset: 0; z-index: 400;
+    background: var(--bg);
+    display: none; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .page-loader.show { display: flex; }
+  .spinner {
+    width: 36px; height: 36px; border: 3px solid var(--border);
+    border-top-color: var(--purple); border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .page-loader p { margin-top: 12px; font-size: 13px; color: var(--text-muted); }
+
+  /* ── Status Bar ── */
+  .status-bar {
+    padding: 14px 0 6px;
+    display: flex; justify-content: space-between; align-items: flex-start;
+  }
+  .greeting { font-size: 20px; font-weight: 700; }
+  .date-line { font-size: 12px; color: var(--text-muted); margin-top: 2px; display: flex; gap: 6px; align-items: center; }
+  .weather-pill {
+    display: flex; align-items: center; gap: 4px;
+    font-size: 12px; color: var(--text-muted); background: var(--card);
+    padding: 6px 12px; border-radius: 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+  }
+  .weather-pill .w-icon { font-size: 16px; }
+  .weather-pill .w-temp { font-weight: 600; color: var(--text); font-size:13px; }
+
+  /* ── Monthly Theme ── */
+  .theme-banner {
+    margin: 10px 0 8px; padding: 10px 14px;
+    background: linear-gradient(135deg, #EDE9FE, #FCE7F3);
+    border-radius: 12px; display: flex; align-items: center; gap: 10px;
+    font-size: 13px; cursor: pointer;
+  }
+  .theme-banner .t-label { font-weight: 700; color: var(--purple); white-space: nowrap; }
+  .theme-banner .t-content { color: var(--text); flex:1; }
+  .theme-banner .t-edit { color: var(--text-subtle); font-size: 11px; }
+
+  /* ── Today's Must-Do (non-routine only) ── */
+  .mustdo-strip {
+    margin: 10px 0 14px; padding: 12px 14px;
+    background: var(--red-bg); border-radius: 10px;
+    border-left: 3px solid var(--red);
+  }
+  .mustdo-strip.empty { background: var(--card); border-left-color: var(--border); }
+  .mustdo-strip .md-header {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 11px; font-weight: 700; color: var(--red); margin-bottom: 4px;
+  }
+  .mustdo-strip.empty .md-header { color: var(--text-muted); }
+  .mustdo-strip .md-add { font-size: 11px; cursor: pointer; font-weight: 500; }
+  .md-item { font-size: 13px; padding: 3px 0; display: flex; align-items: center; gap: 6px; }
+  .md-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--red); }
+  .md-del { color: var(--text-subtle); cursor: pointer; font-size: 12px; margin-left: auto; }
+  .md-add-row { display: flex; gap: 6px; margin-top: 6px; }
+  .md-add-row input {
+    flex:1; border:1px solid var(--border); padding:6px 8px; border-radius:6px;
+    font-size:12px; outline:none; font-family:var(--font);
+  }
+  .md-add-row input:focus { border-color: var(--coral); }
+  .btn-tiny {
+    padding: 6px 10px; font-size:11px; border:none; border-radius:6px;
+    cursor:pointer; font-family:var(--font); font-weight:500;
+  }
+  .btn-tiny.primary { background: var(--coral); color: #fff; }
+  .btn-tiny.ghost { background: var(--border); color: var(--text-muted); }
+
+  /* ── AI Secretary ── */
+  .secy-card {
+    margin: 8px 0 12px; padding: 14px 16px;
+    background: linear-gradient(135deg, #F5F3FF, #FDF2F8);
+    border-radius: 14px; border: 1px solid #EDE9FE;
+    font-size: 13px; line-height: 1.7; color: var(--text);
+  }
+  .secy-header {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+  }
+  .secy-avatar {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: linear-gradient(135deg, #7C3AED, #A78BFA);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; color: #fff;
+  }
+  .secy-name { font-size: 12px; font-weight: 600; color: var(--purple); }
+  .secy-body { font-size: 13px; line-height: 1.7; }
+  .secy-body p { margin-bottom: 6px; }
+  .secy-body p:last-child { margin-bottom: 0; }
+  .secy-highlight { font-weight: 600; color: var(--purple); }
+
+  /* ── Section Label ── */
+  .section-title {
+    font-size: 10px; font-weight: 700; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.3px;
+    margin: 18px 0 10px; padding-left: 2px;
+  }
+
+  /* ════════════════════════════════════════
+     我的领域 · Realm Cards
+     ════════════════════════════════════════ */
+  .realm-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .realm-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    background: var(--card);
+    border-radius: 14px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    cursor: pointer;
+    transition: transform 0.12s, box-shadow 0.15s;
+    animation: fadeIn 0.3s ease both;
+  }
+  .realm-card:nth-child(1) { animation-delay: 0s; }
+  .realm-card:nth-child(2) { animation-delay: 0.05s; }
+  .realm-card:nth-child(3) { animation-delay: 0.10s; }
+  .realm-card:nth-child(4) { animation-delay: 0.15s; }
+  .realm-card:active {
+    transform: scale(0.98);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+  }
+  .realm-icon-wrap {
+    width: 46px; height: 46px;
+    border-radius: 13px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+  }
+  .realm-icon-wrap.pet { background: var(--green-bg); }
+  .realm-icon-wrap.biz { background: var(--amber-bg); }
+  .realm-icon-wrap.learn { background: var(--purple-bg); }
+  .realm-icon-wrap.life { background: var(--sky-bg); }
+
+  .realm-info { flex: 1; min-width: 0; }
+  .realm-name { font-size: 15px; font-weight: 600; margin-bottom: 2px; }
+  .realm-desc {
+    font-size: 12px; color: var(--text-muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .realm-arrow {
+    font-size: 18px; color: var(--text-subtle);
+    flex-shrink: 0;
+  }
+
+  /* ════════════════════════════════════════
+     领域详情页（全屏覆盖）
+     ════════════════════════════════════════ */
+  .realm-page {
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+    background: var(--bg);
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .realm-page.show {
+    display: flex;
+    animation: slideInRight 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  @keyframes slideInRight {
+    from { transform: translateX(100%); opacity: 0.8; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+  .realm-header {
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--card);
+    border-bottom: 0.5px solid var(--border);
+    flex-shrink: 0;
+  }
+  .realm-back {
+    width: 32px; height: 32px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; color: var(--text);
+    cursor: pointer;
+    background: var(--bg);
+    flex-shrink: 0;
+  }
+  .realm-back:active { background: var(--border); }
+  .realm-page-title {
+    font-size: 16px;
+    font-weight: 600;
+    flex: 1;
+  }
+  .realm-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* 子项目网格 */
+  .sub-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  .sub-card {
+    background: var(--card);
+    border-radius: 14px;
+    padding: 18px 12px;
+    text-align: center;
+    cursor: pointer;
+    transition: transform 0.12s, box-shadow 0.15s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    text-decoration: none;
+    color: inherit;
+    display: block;
+  }
+  .sub-card:active {
+    transform: scale(0.95);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+  }
+  .sub-icon {
+    font-size: 30px;
+    margin-bottom: 8px;
+  }
+  .sub-name {
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .sub-desc {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 3px;
+  }
+
+  /* ── Panel Cards (inside modals) ── */
+  .panel-card {
+    background: var(--card); border-radius: var(--radius-sm);
+    padding: 14px 16px; margin-bottom: 10px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+  }
+  .panel-card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .panel-icon { font-size: 20px; }
+  .panel-name { font-size: 14px; font-weight: 600; }
+  .panel-tag { font-size: 10px; padding: 2px 8px; border-radius: 12px; }
+  .panel-focus { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+  .panel-input {
+    border: none; border-bottom: 1px dashed var(--border); font-size: 12px;
+    font-family: var(--font); padding: 2px 0; color: var(--text);
+    background: transparent; width: 140px; outline: none;
+  }
+  .panel-input:focus { border-bottom-color: var(--purple); }
+  .panel-subtitle {
+    font-size: 11px; font-weight: 600; color: var(--text-muted);
+    margin: 10px 0 6px; display: flex; align-items: center; gap: 8px;
+  }
+  .panel-item {
+    display: flex; align-items: center; gap: 6px; padding: 4px 0;
+    font-size: 12px; border-bottom: 1px solid var(--border);
+  }
+  .panel-item:last-child { border-bottom: none; }
+  .panel-meta { font-size: 10px; color: var(--text-subtle); margin-left: auto; white-space: nowrap; }
+  .panel-tags { font-size: 10px; color: var(--sky); margin-left: 6px; }
+  .panel-del { font-size: 11px; color: var(--text-subtle); cursor: pointer; padding: 2px 4px; }
+  .panel-del:hover { color: var(--coral); }
+  .panel-empty { font-size: 12px; color: var(--text-subtle); padding: 6px 0; font-style: italic; }
+  .task-check { cursor: pointer; font-size: 14px; color: var(--text-muted); user-select: none; }
+  .task-check.done { color: var(--green); }
+  .task-done-text { text-decoration: line-through; color: var(--text-subtle); }
+
+  /* ── Bottom Dock ── */
+  .dock-spacer { height: 120px; }
+  .dock {
+    position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+    width: 100%; max-width: 440px;
+    background: rgba(255,255,255,0.78);
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    border-top: 0.5px solid rgba(0,0,0,0.06);
+    padding: 8px 16px max(8px, env(safe-area-inset-bottom));
+    display: flex; justify-content: space-around; align-items: center;
+    z-index: 100;
+  }
+  .dock-item {
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    cursor: pointer; transition: transform 0.12s; font-size: 9px;
+    color: var(--text-muted); padding: 4px 8px; border-radius: 10px;
+  }
+  .dock-item:active { transform: scale(0.9); background: rgba(0,0,0,0.04); }
+  .dock-item.active { color: var(--coral); }
+  .dock-icon {
+    width: 38px; height: 38px; border-radius: 11px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+  }
+  .dock-icon.capture { background: var(--coral-bg); }
+  .dock-icon.checkin { background: var(--green-bg); }
+  .dock-icon.ai { background: var(--purple-bg); }
+  .dock-icon.goals { background: var(--sky-bg); }
+  .dock-label { font-size: 9px; }
+
+  /* ── Modal Overlay ── */
+  .modal-overlay {
+    position: fixed; inset: 0; z-index: 200;
+    background: rgba(0,0,0,0.25); display: none;
+    align-items: flex-end; justify-content: center;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal-sheet {
+    width: 100%; max-width: 440px; max-height: 75vh; overflow-y: auto;
+    background: #fff; border-radius: 18px 18px 0 0;
+    padding: 14px 18px 30px; animation: slideUp 0.25s ease;
+  }
+  @keyframes slideUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+  .modal-handle {
+    width: 36px; height: 4px; border-radius: 2px;
+    background: var(--border); margin: 0 auto 14px;
+  }
+  .modal-title { font-size: 16px; font-weight: 700; margin-bottom: 14px; text-align: center; }
+  .modal-close {
+    position: absolute; top: 16px; right: 18px;
+    font-size: 14px; color: var(--text-muted); cursor: pointer;
+    background: var(--bg); width: 28px; height: 28px; border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* ── Check-in List ── */
+  .checkin-section { margin-bottom: 16px; }
+  .checkin-section-title {
+    font-size: 11px; font-weight: 700; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 6px;
+  }
+  .checkin-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 0; border-bottom: 1px solid var(--border);
+    font-size: 14px;
+  }
+  .checkin-circle {
+    width: 24px; height: 24px; border-radius: 50%;
+    border: 2px solid var(--border); flex-shrink: 0; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s; font-size: 12px;
+  }
+  .checkin-circle.done { background: var(--green); border-color: var(--green); color: #fff; }
+  .checkin-text { flex: 1; }
+  .checkin-text.done-text { text-decoration: line-through; color: var(--text-subtle); }
+  .checkin-add {
+    margin-top: 8px; font-size: 12px; color: var(--coral); cursor: pointer;
+  }
+  .checkin-add input {
+    margin-top: 4px; border:1px solid var(--border); padding:6px 8px; border-radius:6px;
+    font-size:12px; outline:none; font-family:var(--font); width:100%;
+  }
+
+  /* ── Goals List ── */
+  .goal-row {
+    padding: 10px 0; border-bottom: 1px solid var(--border);
+  }
+  .goal-row .g-top { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; }
+  .goal-row .g-name { font-weight: 500; }
+  .goal-row .g-status { font-size: 11px; }
+  .goal-row .g-status.up { color: var(--green); }
+  .goal-row .g-status.stable { color: var(--sky); }
+  .goal-row .g-bar {
+    height: 4px; border-radius: 2px; background: var(--border); overflow: hidden;
+  }
+  .goal-row .g-fill { height:100%; border-radius:2px; }
+  .goal-row .g-fill.green { background: var(--green); }
+  .goal-row .g-fill.amber { background: var(--amber); }
+  .goal-row .g-desc { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+
+  /* ── Capture Modal ── */
+  .capture-textarea {
+    width: 100%; border: 1px solid var(--border); padding: 12px;
+    border-radius: 10px; font-size: 14px; font-family: var(--font);
+    min-height: 100px; outline: none; resize: vertical;
+  }
+  .capture-textarea:focus { border-color: var(--coral); }
+  .capture-btn-row { display: flex; gap: 8px; margin-top: 10px; justify-content: flex-end; }
+  .btn {
+    padding: 8px 18px; font-size: 13px; border:none; border-radius: 8px;
+    cursor:pointer; font-family:var(--font); font-weight:500;
+  }
+  .btn.primary { background: var(--coral); color: #fff; }
+  .btn.ghost { background: var(--border); color: var(--text-muted); }
+
+  /* ── Animations ── */
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════
+     登录界面
+     ════════════════════════════════════════ -->
+<div class="auth-overlay" id="authOverlay">
+  <div class="auth-logo">🕊️</div>
+  <div class="auth-title">小悠 · Personal OS</div>
+  <div class="auth-sub">你的人生操作系统，云端同步，随时可用</div>
+  <div class="auth-form">
+    <div class="auth-error" id="authError"></div>
+    <div class="auth-success" id="authSuccess"></div>
+    <input class="auth-input" type="email" id="authEmail" placeholder="邮箱地址" autocomplete="email">
+    <input class="auth-input" type="password" id="authPassword" placeholder="密码（至少6位）" autocomplete="current-password">
+    <button class="auth-btn primary" id="authBtn" onclick="handleAuth()">登录</button>
+    <div class="auth-switch" id="authSwitch">
+      还没有账号？<a onclick="toggleAuthMode()">注册一个</a>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     页面加载中
+     ════════════════════════════════════════ -->
+<div class="page-loader" id="pageLoader">
+  <div class="spinner"></div>
+  <p>正在同步数据...</p>
+</div>
+
+<!-- ════════════════════════════════════════
+     首页 · HOME
+     ════════════════════════════════════════ -->
+<div id="homePage" style="display:none;">
+
+<!-- ====== Status Bar ====== -->
+<div class="status-bar">
+  <div>
+    <div class="greeting" id="greeting">早上好，小悠</div>
+    <div class="date-line">
+      <span id="dateText">7月30日 星期四</span>
+    </div>
+  </div>
+  <div class="weather-pill">
+    <span class="w-icon" id="wIcon">🌡️</span>
+    <span class="w-temp" id="wTemp">--°</span>
+    <span id="wDesc" style="font-size:10px;"></span>
+  </div>
+</div>
+
+<!-- ====== Monthly Theme ====== -->
+<div class="theme-banner" id="themeBanner" onclick="editTheme()">
+  <span class="t-label" id="themeLabel">8月主题</span>
+  <span class="t-content" id="themeContent">📖 看书 &nbsp;+&nbsp; 🏃 运动</span>
+  <span class="t-edit">编辑</span>
+</div>
+
+<!-- ====== Today's Must-Do (non-routine) ====== -->
+<div class="mustdo-strip" id="mustdoStrip">
+  <div class="md-header">
+    <span>⚠️ 今天要做的特别事</span>
+    <span class="md-add" onclick="showMdAdd()">+&nbsp;添加</span>
+  </div>
+  <div id="mdList"></div>
+  <div class="md-add-row" id="mdAddRow" style="display:none;">
+    <input id="mdInput" placeholder="比如：去宠物医院、心理咨询..." onkeydown="if(event.key==='Enter')addMd()">
+    <button class="btn-tiny primary" onclick="addMd()">加</button>
+    <button class="btn-tiny ghost" onclick="hideMdAdd()">取消</button>
+  </div>
+</div>
+
+<!-- ====== AI 今日秘书 ====== -->
+<div class="secy-card" id="secyCard">
+  <div class="secy-header">
+    <div class="secy-avatar">🕊️</div>
+    <span class="secy-name">今日秘书 · 小W</span>
+  </div>
+  <div class="secy-body" id="secyBody"></div>
+</div>
+
+<!-- ====== 我的领域 ====== -->
+<div class="section-title">我的领域</div>
+<div class="realm-list">
+  <div class="realm-card" onclick="openRealm('pet')">
+    <div class="realm-icon-wrap pet">🐶</div>
+    <div class="realm-info">
+      <div class="realm-name">宠物健康</div>
+      <div class="realm-desc">犰狳 · 悠米 · 营养 · 康复 · 检查</div>
+    </div>
+    <div class="realm-arrow">›</div>
+  </div>
+  <div class="realm-card" onclick="openRealm('business')">
+    <div class="realm-icon-wrap biz">💼</div>
+    <div class="realm-info">
+      <div class="realm-name">生意经营</div>
+      <div class="realm-desc">淘宝 · 库存 · 私域 · 产品研发</div>
+    </div>
+    <div class="realm-arrow">›</div>
+  </div>
+  <div class="realm-card" onclick="openRealm('learn')">
+    <div class="realm-icon-wrap learn">📚</div>
+    <div class="realm-info">
+      <div class="realm-name">学习成长</div>
+      <div class="realm-desc">动物医学 · 课程 · 笔记 · 证书</div>
+    </div>
+    <div class="realm-arrow">›</div>
+  </div>
+  <div class="realm-card" onclick="openRealm('life')">
+    <div class="realm-icon-wrap life">🧠</div>
+    <div class="realm-info">
+      <div class="realm-name">人生管理</div>
+      <div class="realm-desc">自己 · 资料库 · 目标 · 打卡 · 随手记</div>
+    </div>
+    <div class="realm-arrow">›</div>
+  </div>
+</div>
+
+<!-- Spacer for dock -->
+<div class="dock-spacer"></div>
+
+</div><!-- /homePage -->
+
+<!-- ════════════════════════════════════════
+     领域详情页 · REALM PAGE
+     ════════════════════════════════════════ -->
+<div class="realm-page" id="realmPage">
+  <div class="realm-header">
+    <div class="realm-back" onclick="closeRealm()">←</div>
+    <div class="realm-page-title" id="realmPageTitle"></div>
+  </div>
+  <div class="realm-body" id="realmBody"></div>
+</div>
+
+<!-- ════════════════════════════════════════
+     Bottom Dock
+     ════════════════════════════════════════ -->
+<div class="dock" id="dockBar" style="display:none;">
+  <div class="dock-item" onclick="openModal('goals')">
+    <div class="dock-icon goals">🎯</div>
+    <span class="dock-label">长期目标</span>
+  </div>
+  <div class="dock-item" onclick="openModal('checkin')" id="dockCheckin">
+    <div class="dock-icon checkin">✅</div>
+    <span class="dock-label">打卡</span>
+  </div>
+  <div class="dock-item" onclick="openChatGPT()">
+    <div class="dock-icon ai">🤖</div>
+    <span class="dock-label">AI</span>
+  </div>
+  <div class="dock-item" onclick="openModal('capture')">
+    <div class="dock-icon capture">✏️</div>
+    <span class="dock-label">随手记</span>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     MODALS
+     ════════════════════════════════════════ -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+  <div class="modal-sheet" id="modalSheet" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <span class="modal-close" onclick="closeModalDirect()">✕</span>
+    <div id="modalContent"></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  SUPABASE CONFIG
+// ═══════════════════════════════════════════════════════════════
+const SUPABASE_URL = 'https://chdqesqtlgbmwoeubg.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_KstA9qxhRbB1dwcyGnlihA_pMn8tzWQ';
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let currentUser = null;
+let isAuthMode = 'login'; // 'login' or 'register'
+
+// ═══════════════════════════════════════════════════════════════
+//  AUTH
+// ═══════════════════════════════════════════════════════════════
+function toggleAuthMode() {
+  isAuthMode = isAuthMode === 'login' ? 'register' : 'login';
+  document.getElementById('authBtn').textContent = isAuthMode === 'login' ? '登录' : '注册';
+  document.getElementById('authSwitch').innerHTML = isAuthMode === 'login'
+    ? '还没有账号？<a onclick="toggleAuthMode()">注册一个</a>'
+    : '已有账号？<a onclick="toggleAuthMode()">直接登录</a>';
+  document.getElementById('authError').textContent = '';
+  document.getElementById('authSuccess').textContent = '';
+}
+
+async function handleAuth() {
+  const email = document.getElementById('authEmail').value.trim();
+  const password = document.getElementById('authPassword').value;
+  const errEl = document.getElementById('authError');
+  const sucEl = document.getElementById('authSuccess');
+  const btn = document.getElementById('authBtn');
+
+  errEl.textContent = '';
+  sucEl.textContent = '';
+
+  if (!email || !password) { errEl.textContent = '请填写邮箱和密码'; return; }
+  if (password.length < 6) { errEl.textContent = '密码至少6位'; return; }
+
+  btn.disabled = true;
+
+  try {
+    let result;
+    if (isAuthMode === 'login') {
+      result = await supabase.auth.signInWithPassword({ email, password });
+    } else {
+      result = await supabase.auth.signUp({ email, password });
+    }
+
+    if (result.error) {
+      errEl.textContent = result.error.message;
+      btn.disabled = false;
+      return;
+    }
+
+    if (isAuthMode === 'register') {
+      sucEl.textContent = '注册成功！请检查邮箱验证链接，然后登录。';
+      btn.disabled = false;
+      return;
+    }
+
+    // Login success
+    currentUser = result.data.user;
+    await initApp();
+  } catch (e) {
+    errEl.textContent = '网络错误，请重试';
+    btn.disabled = false;
+  }
+}
+
+// Check existing session
+async function checkSession() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.user) {
+    currentUser = session.user;
+    await initApp();
+  }
+}
+
+// Logout
+async function logout() {
+  await supabase.auth.signOut();
+  location.reload();
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  DATA LAYER (Supabase)
+// ═══════════════════════════════════════════════════════════════
+async function dbLoad(key, defaultValue) {
+  if (!currentUser) return defaultValue;
+  try {
+    const { data, error } = await supabase
+      .from('user_data')
+      .select('data_value')
+      .eq('user_id', currentUser.id)
+      .eq('data_key', key)
+      .single();
+    if (error && error.code !== 'PGRST116') { console.error('dbLoad error:', key, error); }
+    if (data?.data_value !== undefined) return data.data_value;
+  } catch (e) { console.error('dbLoad exception:', key, e); }
+  return defaultValue;
+}
+
+async function dbSave(key, value) {
+  if (!currentUser) return;
+  try {
+    const { error } = await supabase
+      .from('user_data')
+      .upsert({
+        user_id: currentUser.id,
+        data_key: key,
+        data_value: value,
+        updated_at: new Date().toISOString()
+      });
+    if (error) console.error('dbSave error:', key, error);
+  } catch (e) { console.error('dbSave exception:', key, e); }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  APP INIT
+// ═══════════════════════════════════════════════════════════════
+async function initApp() {
+  document.getElementById('authOverlay').classList.add('hidden');
+  document.getElementById('pageLoader').classList.add('show');
+
+  // Load all data from cloud
+  await loadAllData();
+
+  document.getElementById('pageLoader').classList.remove('show');
+  document.getElementById('homePage').style.display = '';
+  document.getElementById('dockBar').style.display = '';
+
+  updateHeader();
+  fetchWeather();
+  renderTheme();
+  renderMd();
+  renderSecy();
+}
+
+async function loadAllData() {
+  const today = getToday();
+
+  // Theme
+  const themeData = await dbLoad('theme', null);
+  theme = themeData || { month: '8月', theme: '📖 看书 &nbsp;+&nbsp; 🏃 运动' };
+
+  // Must-do
+  const mdData = await dbLoad('mustdo', null);
+  if (mdData && mdData.date === today) {
+    mdItems = mdData.items || [];
+  } else {
+    mdItems = [];
+  }
+
+  // Learn
+  const learnDataLoaded = await dbLoad('learn', null);
+  learnData = learnDataLoaded || JSON.parse(JSON.stringify(DEFAULT_LEARN));
+
+  // Work
+  const workDataLoaded = await dbLoad('work', null);
+  workData = workDataLoaded || JSON.parse(JSON.stringify(DEFAULT_WORK));
+
+  // Business
+  const bizDataLoaded = await dbLoad('business', null);
+  bizData = bizDataLoaded || JSON.parse(JSON.stringify(DEFAULT_BIZ));
+
+  // Self
+  const selfDataLoaded = await dbLoad('self', null);
+  selfData = selfDataLoaded || JSON.parse(JSON.stringify(DEFAULT_SELF));
+
+  // KB
+  const kbDataLoaded = await dbLoad('kb', null);
+  kbData = kbDataLoaded || JSON.parse(JSON.stringify(DEFAULT_KB));
+
+  // Checkins
+  const checkinData = await dbLoad('checkin', null);
+  if (checkinData && checkinData.date === today) {
+    checkins = checkinData;
+  } else {
+    checkins = { date: today, items: DEFAULT_CHECKINS.map(c => ({...c, done:false})), custom: [] };
+  }
+
+  // Goals
+  const goalsDataLoaded = await dbLoad('goals', null);
+  goalsData = goalsDataLoaded || JSON.parse(JSON.stringify(DEFAULT_GOALS));
+
+  // Capture
+  const captureData = await dbLoad('capture', null);
+  if (captureData && captureData.date === today) {
+    captures = captureData.items || [];
+  } else {
+    captures = [];
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  领域配置
+// ═══════════════════════════════════════════════════════════════
+const REALM_CONFIG = {
+  pet: {
+    title: '🐶 宠物健康',
+    color: '#4A6741',
+    items: [
+      { name: '犰狳', icon: '🐕', desc: '健康档案 & 护理', type: 'link', href: 'qiyuyu-health.html' },
+      { name: '悠米', icon: '🐕‍🦺', desc: '健康档案 & 护理', type: 'link', href: 'youmi-health.html' },
+      { name: '营养数据库', icon: '🥩', desc: '食谱 & 保健品方案', type: 'modal', target: 'nutrition' },
+      { name: '康复训练', icon: '🏋️', desc: '训练计划 & 记录', type: 'modal', target: 'rehab' },
+      { name: '检查记录', icon: '📋', desc: '体检 & 异常追踪', type: 'modal', target: 'exams' },
+    ]
+  },
+  business: {
+    title: '💼 生意经营',
+    color: '#C4823D',
+    items: [
+      { name: '淘宝店铺', icon: '🛒', desc: '店铺运营状态', type: 'modal', target: 'businessDetail' },
+      { name: '库存管理', icon: '📦', desc: '进销存跟踪', type: 'modal', target: 'businessDetail' },
+      { name: '私域运营', icon: '💬', desc: '微信 & 社群', type: 'modal', target: 'businessDetail' },
+      { name: '产品研发', icon: '🔬', desc: '新品规划', type: 'modal', target: 'businessDetail' },
+    ]
+  },
+  learn: {
+    title: '📚 学习成长',
+    color: '#7C3AED',
+    items: [
+      { name: '动物医学', icon: '🏥', desc: '临床 & 疾病研究', type: 'modal', target: 'learnDetail' },
+      { name: '课程进度', icon: '📖', desc: '在线课程跟踪', type: 'modal', target: 'learnDetail' },
+      { name: '学习笔记', icon: '📝', desc: '笔记 & 心得', type: 'modal', target: 'learnDetail' },
+      { name: '证书规划', icon: '🏆', desc: '考证 & 资质', type: 'modal', target: 'learnDetail' },
+    ]
+  },
+  life: {
+    title: '🧠 人生管理',
+    color: '#0369A1',
+    items: [
+      { name: '自己', icon: '👤', desc: '身心 & 探索', type: 'modal', target: 'selfDetail' },
+      { name: '资料库', icon: '📦', desc: '知识 & 资料', type: 'modal', target: 'kbDetail' },
+      { name: '长期目标', icon: '🎯', desc: '目标追踪', type: 'modal', target: 'goals' },
+      { name: '打卡', icon: '✅', desc: '习惯养成', type: 'modal', target: 'checkin' },
+      { name: '随手记', icon: '✏️', desc: '灵感 & 记录', type: 'modal', target: 'capture' },
+    ]
+  }
+};
+
+function openRealm(key) {
+  const cfg = REALM_CONFIG[key];
+  if (!cfg) return;
+
+  const page = document.getElementById('realmPage');
+  const title = document.getElementById('realmPageTitle');
+  const body = document.getElementById('realmBody');
+
+  title.textContent = cfg.title;
+  title.style.color = cfg.color;
+
+  let html = '<div class="sub-grid">';
+  cfg.items.forEach(item => {
+    if (item.type === 'link') {
+      html += `<a class="sub-card" href="${item.href}">
+        <div class="sub-icon">${item.icon}</div>
+        <div class="sub-name">${escHtml(item.name)}</div>
+        <div class="sub-desc">${escHtml(item.desc)}</div>
+      </a>`;
+    } else {
+      html += `<div class="sub-card" onclick="handleRealmItem('${item.type}', '${item.target}')">
+        <div class="sub-icon">${item.icon}</div>
+        <div class="sub-name">${escHtml(item.name)}</div>
+        <div class="sub-desc">${escHtml(item.desc)}</div>
+      </div>`;
+    }
+  });
+  html += '</div>';
+
+  body.innerHTML = html;
+  page.classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeRealm() {
+  document.getElementById('realmPage').classList.remove('show');
+  document.body.style.overflow = '';
+}
+
+function handleRealmItem(type, target) {
+  if (type === 'modal') {
+    closeRealm();
+    setTimeout(() => openModal(target), 250);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  DATE & GREETING
+// ═══════════════════════════════════════════════════════════════
+function updateHeader() {
+  const now = new Date();
+  const h = now.getHours();
+  const g = h < 12 ? '早上好，小悠' : h < 18 ? '下午好，小悠' : '晚上好，小悠';
+  document.getElementById('greeting').textContent = g;
+  const days = ['日','一','二','三','四','五','六'];
+  document.getElementById('dateText').textContent = (now.getMonth()+1)+'月'+now.getDate()+'日 星期'+days[now.getDay()];
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  WEATHER
+// ═══════════════════════════════════════════════════════════════
+const WMO = {0:{i:'☀️',t:'晴'},1:{i:'🌤️',t:'大部晴'},2:{i:'⛅',t:'多云'},3:{i:'☁️',t:'阴'},45:{i:'🌫️',t:'雾'},51:{i:'🌦️',t:'毛毛雨'},61:{i:'🌧️',t:'小雨'},63:{i:'🌧️',t:'中雨'},65:{i:'🌧️',t:'大雨'},71:{i:'🌨️',t:'小雪'},80:{i:'🌦️',t:'阵雨'},81:{i:'🌧️',t:'中阵雨'},82:{i:'🌧️',t:'大阵雨'},95:{i:'⛈️',t:'雷阵雨'},96:{i:'⛈️',t:'雷暴'},99:{i:'⛈️',t:'强雷暴'}};
+let weatherData = null;
+async function fetchWeather() {
+  try {
+    const r = await fetch('https://api.open-meteo.com/v1/forecast?latitude=30.57&longitude=104.07&daily=temperature_2m_max,temperature_2m_min,weather_code&timezone=Asia/Shanghai&forecast_days=1');
+    const d = (await r.json()).daily;
+    const w = WMO[d.weather_code[0]] || {i:'🌡️',t:''};
+    document.getElementById('wIcon').textContent = w.i;
+    document.getElementById('wTemp').textContent = d.temperature_2m_min[0]+'°~'+d.temperature_2m_max[0]+'°';
+    document.getElementById('wDesc').textContent = w.t;
+    weatherData = { min: d.temperature_2m_min[0], max: d.temperature_2m_max[0], code: d.weather_code[0], icon: w.i, text: w.t };
+    renderSecy();
+  } catch(e) {}
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  MONTHLY THEME
+// ═══════════════════════════════════════════════════════════════
+let theme = { month: '8月', theme: '📖 看书 &nbsp;+&nbsp; 🏃 运动' };
+
+function renderTheme() {
+  document.getElementById('themeLabel').textContent = theme.month + '主题';
+  document.getElementById('themeContent').innerHTML = theme.theme;
+}
+
+async function editTheme() {
+  const m = prompt('月份（如 "8月"）：', theme.month);
+  if (!m) return;
+  const t = prompt('本月主题（如 "看书 + 运动"）：', theme.theme.replace(/&nbsp;/g,' '));
+  if (!t) return;
+  theme = { month: m, theme: t.replace(/ /g, ' &nbsp;+&nbsp; ') };
+  await dbSave('theme', theme);
+  renderTheme();
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  TODAY'S MUST-DO
+// ═══════════════════════════════════════════════════════════════
+let mdItems = [];
+
+function renderMd() {
+  const el = document.getElementById('mdList');
+  const strip = document.getElementById('mustdoStrip');
+  if (!mdItems.length) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--text-subtle);padding:4px 0;">今天没有特别的待办 · 有临时事项记得加上</div>';
+    strip.classList.add('empty');
+  } else {
+    strip.classList.remove('empty');
+    el.innerHTML = mdItems.map((item,i) => `
+      <div class="md-item">
+        <span class="md-dot"></span>
+        <span>${escHtml(item.text)}</span>
+        <span class="md-del" onclick="delMd(${i})">✕</span>
+      </div>`).join('');
+  }
+}
+
+async function delMd(i) {
+  mdItems.splice(i,1);
+  await dbSave('mustdo', { date: getToday(), items: mdItems });
+  renderMd(); renderSecy();
+}
+
+function openChatGPT() {
+  const now = Date.now();
+  window.location.href = 'chatgpt://';
+  setTimeout(function() {
+    if (Date.now() - now < 1500) {
+      window.open('https://chat.openai.com', '_blank');
+    }
+  }, 1000);
+}
+function showMdAdd() { document.getElementById('mdAddRow').style.display='flex'; document.getElementById('mdInput').focus(); }
+function hideMdAdd() { document.getElementById('mdAddRow').style.display='none'; }
+async function addMd() {
+  const t = document.getElementById('mdInput').value.trim();
+  if (!t) return;
+  mdItems.push({id:'m'+Date.now(),text:t});
+  await dbSave('mustdo', { date: getToday(), items: mdItems });
+  renderMd();
+  document.getElementById('mdInput').value = ''; hideMdAdd(); renderSecy();
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  AI SECRETARY
+// ═══════════════════════════════════════════════════════════════
+function renderSecy() {
+  const el = document.getElementById('secyBody');
+  if (!el) return;
+
+  const now = new Date();
+  const dayName = ['日','一','二','三','四','五','六'][now.getDay()];
+
+  let weatherLine = '';
+  if (weatherData) {
+    const w = weatherData;
+    if (w.max > 32) weatherLine = `<p>今天成都最高<span class="secy-highlight">${w.max}°C</span>，高温天气，犰狳的耐热是个考验。建议上午早点遛、中午别出门、多观察饮水。</p>`;
+    else if (w.max >= 28) weatherLine = `<p>今天<span class="secy-highlight">${w.min}°~${w.max}°C</span>，温度偏高，犰狳出门注意避开正午就好。</p>`;
+    else if (w.code >= 61) weatherLine = `<p>今天有雨<span class="secy-highlight">${w.min}°~${w.max}°C</span>，户外活动不太方便。犰狳的犬健身和脑力训练可以在家里做好，不耽误。</p>`;
+    else weatherLine = `<p>今天<span class="secy-highlight">${w.min}°~${w.max}°C</span>，天气不错，可以安排犰狳的户外训练。</p>`;
+  }
+
+  let taskLine = '';
+  if (mdItems.length > 0) {
+    taskLine = '<p>今天你有特别安排：' + mdItems.map(i => `<span class="secy-highlight">${i.text}</span>`).join('、') + '。别忘了预留时间。</p>';
+  } else {
+    taskLine = '<p>今天没有临时安排，是个适合按自己节奏来的日子。</p>';
+  }
+
+  const themeLine = `<p>这个月的主题是<span class="secy-highlight">${theme.theme.replace(/&nbsp;/g,'').replace(/\+/g,'+')}</span>。空闲的时候，优先选跟这两个方向相关的事情做。</p>`;
+
+  let rhythmLine = '';
+  if (dayName === '五') {
+    rhythmLine = '<p>今天是周五，记得确认晚上的<span class="secy-highlight">心理咨询时间</span>，提前给自己留一段安静的时间。</p>';
+  }
+
+  const dogLine = '<p>犰狳的曲洛司坦早晚按时给，悠米整体状态稳定。两只狗每天的刷牙和互动比任何补品都重要。</p>';
+
+  const closings = [
+    '深呼吸，这一天你已经做得很好了。',
+    '不着急，慢慢来，你正在对的方向上走。',
+    '今天不需要完美，只需要真实。',
+  ];
+  const closing = closings[now.getDate() % 3];
+  const closeLine = `<p style="margin-top:4px;color:var(--text-muted);font-style:italic;">— ${closing}</p>`;
+
+  el.innerHTML = weatherLine + taskLine + themeLine + (rhythmLine || '') + dogLine + closeLine;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  学习板块
+// ═══════════════════════════════════════════════════════════════
+const DEFAULT_LEARN = [
+  { id:'l1', name:'宠物临床营养', icon:'🎓', focus:'犬类疾病营养管理', resources:[], notes:[] },
+  { id:'l2', name:'老年犬健康管理', icon:'🐕', focus:'肌少症与康复训练', resources:[], notes:[] },
+  { id:'l3', name:'动物医学', icon:'🔬', focus:'库欣综合征深度理解', resources:[], notes:[] },
+  { id:'l4', name:'英语学习', icon:'🇬🇧', focus:'多邻国每日打卡', resources:[], notes:[] },
+];
+let learnData = [];
+
+function renderLearn() {
+  let h = '<div class="modal-title">📚 学习</div>';
+  learnData.forEach((t, ti) => {
+    h += `<div class="panel-card"><div class="panel-card-header"><span class="panel-icon">${t.icon}</span><span class="panel-name">${escHtml(t.name)}</span></div>`;
+    h += `<div class="panel-focus">当前重点：<input class="panel-input" value="${escHtml(t.focus)}" onchange="updateLearnFocus('${t.id}',this.value)"></div>`;
+    h += `<div class="panel-subtitle">📎 学习资料 <button class="btn-tiny ghost" onclick="addLearnRes('${t.id}')">+ 添加</button></div>`;
+    if (t.resources.length) {
+      t.resources.forEach(r => { h += `<div class="panel-item"><span>${r.type==='link'?'🔗':'📄'}</span> <span>${escHtml(r.title)}</span><span class="panel-del" onclick="delLearnRes('${t.id}','${r.rid}')">✕</span></div>`; });
+    } else { h += '<div class="panel-empty">还没有学习资料 · 看到好的论文、视频可以存进来</div>'; }
+    h += `<div class="panel-subtitle">📝 学习笔记 <button class="btn-tiny ghost" onclick="addLearnNote('${t.id}')">+ 写笔记</button></div>`;
+    if (t.notes.length) {
+      t.notes.forEach(n => { h += `<div class="panel-item"><span>📝</span> <span>${escHtml(n.text)}</span><span class="panel-meta">${n.date}</span><span class="panel-del" onclick="delLearnNote('${t.id}','${n.nid}')">✕</span></div>`; });
+    } else { h += '<div class="panel-empty">还没有笔记 · 学完一个知识点就把心得记下来</div>'; }
+    h += '</div>';
+  });
+  return h;
+}
+
+async function updateLearnFocus(id, val) {
+  const t = learnData.find(l => l.id === id); if (t) { t.focus = val; await dbSave('learn', learnData); }
+}
+async function addLearnRes(tid) {
+  const title = prompt('资料标题：'); if (!title) return;
+  const type = confirm('是链接吗？（确定=链接，取消=文档）') ? 'link' : 'doc';
+  const t = learnData.find(l => l.id === tid);
+  if (t) { t.resources.push({ rid: 'r'+Date.now(), title, type }); await dbSave('learn', learnData); refreshModal(); }
+}
+async function delLearnRes(tid, rid) {
+  const t = learnData.find(l => l.id === tid);
+  if (t) { t.resources = t.resources.filter(r => r.rid !== rid); await dbSave('learn', learnData); refreshModal(); }
+}
+async function addLearnNote(tid) {
+  const text = prompt('笔记内容：'); if (!text) return;
+  const t = learnData.find(l => l.id === tid);
+  if (t) { t.notes.push({ nid: 'n'+Date.now(), text, date: new Date().toLocaleDateString('zh-CN',{month:'short',day:'numeric'}) }); await dbSave('learn', learnData); refreshModal(); }
+}
+async function delLearnNote(tid, nid) {
+  const t = learnData.find(l => l.id === tid);
+  if (t) { t.notes = t.notes.filter(n => n.nid !== nid); await dbSave('learn', learnData); refreshModal(); }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  工作板块
+// ═══════════════════════════════════════════════════════════════
+const DEFAULT_WORK = [
+  { id:'w1', name:'品牌咨询', icon:'💡', status:'探索中', tasks:[], notes:[] },
+  { id:'w2', name:'私域客服', icon:'💬', status:'运行中', tasks:[], notes:[] },
+  { id:'w3', name:'内容创作', icon:'🎬', status:'待启动', tasks:[], notes:[] },
+  { id:'w4', name:'项目管理', icon:'📊', status:'待启动', tasks:[], notes:[] },
+];
+let workData = [];
+
+function renderWork() {
+  let h = '<div class="modal-title">💼 工作</div>';
+  workData.forEach(p => {
+    const statusColors = { '运行中': 'var(--green)', '探索中': 'var(--amber)', '待启动': 'var(--text-muted)' };
+    h += `<div class="panel-card"><div class="panel-card-header"><span class="panel-icon">${p.icon}</span><span class="panel-name">${escHtml(p.name)}</span><span class="panel-tag" style="background:${statusColors[p.status]}20;color:${statusColors[p.status]}">${p.status}</span></div>`;
+    h += `<div class="panel-subtitle">✅ 待办 <button class="btn-tiny ghost" onclick="addWorkTask('${p.id}')">+ 添加</button></div>`;
+    if (p.tasks.length) {
+      p.tasks.forEach((t, ti) => {
+        h += `<div class="panel-item"><span class="task-check ${t.done?'done':''}" onclick="toggleWorkTask('${p.id}',${ti})">${t.done?'✓':'○'}</span> <span class="${t.done?'task-done-text':''}">${escHtml(t.text)}</span><span class="panel-del" onclick="delWorkTask('${p.id}',${ti})">✕</span></div>`;
+      });
+    } else { h += '<div class="panel-empty">还没有待办事项</div>'; }
+    h += `<div class="panel-subtitle">📝 备注 <button class="btn-tiny ghost" onclick="addWorkNote('${p.id}')">+ 添加</button></div>`;
+    if (p.notes.length) {
+      p.notes.forEach(n => { h += `<div class="panel-item"><span>📝</span> <span>${escHtml(n.text)}</span><span class="panel-meta">${n.date}</span><span class="panel-del" onclick="delWorkNote('${p.id}','${n.nid}')">✕</span></div>`; });
+    } else { h += '<div class="panel-empty">还没有备注</div>'; }
+    h += '</div>';
+  });
+  return h;
+}
+
+async function toggleWorkTask(pid, ti) {
+  const p = workData.find(w => w.id === pid);
+  if (p && p.tasks[ti]) { p.tasks[ti].done = !p.tasks[ti].done; await dbSave('work', workData); refreshModal(); }
+}
+async function addWorkTask(pid) {
+  const text = prompt('待办内容：'); if (!text) return;
+  const p = workData.find(w => w.id === pid);
+  if (p) { p.tasks.push({ text, done: false }); await dbSave('work', workData); refreshModal(); }
+}
+async function delWorkTask(pid, ti) {
+  const p = workData.find(w => w.id === pid);
+  if (p) { p.tasks.splice(ti, 1); await dbSave('work', workData); refreshModal(); }
+}
+async function addWorkNote(pid) {
+  const text = prompt('备注内容：'); if (!text) return;
+  const p = workData.find(w => w.id === pid);
+  if (p) { p.notes.push({ nid: 'n'+Date.now(), text, date: new Date().toLocaleDateString('zh-CN',{month:'short',day:'numeric'}) }); await dbSave('work', workData); refreshModal(); }
+}
+async function delWorkNote(pid, nid) {
+  const p = workData.find(w => w.id === pid);
+  if (p) { p.notes = p.notes.filter(n => n.nid !== nid); await dbSave('work', workData); refreshModal(); }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  生意经营板块
+// ═══════════════════════════════════════════════════════════════
+const DEFAULT_BIZ = [
+  { id:'b1', name:'淘宝店铺', icon:'🛒', status:'外包中', tasks:[], notes:[] },
+  { id:'b2', name:'库存管理', icon:'📦', status:'简化中', tasks:[], notes:[] },
+  { id:'b3', name:'私域运营', icon:'💬', status:'探索中', tasks:[], notes:[] },
+  { id:'b4', name:'产品研发', icon:'🔬', status:'待启动', tasks:[], notes:[] },
+];
+let bizData = [];
+
+function renderBusiness() {
+  let h = '<div class="modal-title">💼 生意经营</div>';
+  bizData.forEach(p => {
+    const statusColors = { '运行中': 'var(--green)', '外包中': 'var(--sky)', '简化中': 'var(--amber)', '探索中': 'var(--amber)', '待启动': 'var(--text-muted)' };
+    const sc = statusColors[p.status] || 'var(--text-muted)';
+    h += `<div class="panel-card"><div class="panel-card-header"><span class="panel-icon">${p.icon}</span><span class="panel-name">${escHtml(p.name)}</span><span class="panel-tag" style="background:${sc}20;color:${sc}">${p.status}</span></div>`;
+    h += `<div class="panel-subtitle">✅ 待办 <button class="btn-tiny ghost" onclick="addBizTask('${p.id}')">+ 添加</button></div>`;
+    if (p.tasks.length) {
+      p.tasks.forEach((t, ti) => {
+        h += `<div class="panel-item"><span class="task-check ${t.done?'done':''}" onclick="toggleBizTask('${p.id}',${ti})">${t.done?'✓':'○'}</span> <span class="${t.done?'task-done-text':''}">${escHtml(t.text)}</span><span class="panel-del" onclick="delBizTask('${p.id}',${ti})">✕</span></div>`;
+      });
+    } else { h += '<div class="panel-empty">还没有待办事项</div>'; }
+    h += `<div class="panel-subtitle">📝 备注 <button class="btn-tiny ghost" onclick="addBizNote('${p.id}')">+ 添加</button></div>`;
+    if (p.notes.length) {
+      p.notes.forEach(n => { h += `<div class="panel-item"><span>📝</span> <span>${escHtml(n.text)}</span><span class="panel-meta">${n.date}</span><span class="panel-del" onclick="delBizNote('${p.id}','${n.nid}')">✕</span></div>`; });
+    } else { h += '<div class="panel-empty">还没有备注</div>'; }
+    h += '</div>';
+  });
+  return h;
+}
+
+async function toggleBizTask(pid, ti) {
+  const p = bizData.find(b => b.id === pid);
+  if (p && p.tasks[ti]) { p.tasks[ti].done = !p.tasks[ti].done; await dbSave('business', bizData); refreshModal(); }
+}
+async function addBizTask(pid) {
+  const text = prompt('待办内容：'); if (!text) return;
+  const p = bizData.find(b => b.id === pid);
+  if (p) { p.tasks.push({ text, done: false }); await dbSave('business', bizData); refreshModal(); }
+}
+async function delBizTask(pid, ti) {
+  const p = bizData.find(b => b.id === pid);
+  if (p) { p.tasks.splice(ti, 1); await dbSave('business', bizData); refreshModal(); }
+}
+async function addBizNote(pid) {
+  const text = prompt('备注内容：'); if (!text) return;
+  const p = bizData.find(b => b.id === pid);
+  if (p) { p.notes.push({ nid: 'n'+Date.now(), text, date: new Date().toLocaleDateString('zh-CN',{month:'short',day:'numeric'}) }); await dbSave('business', bizData); refreshModal(); }
+}
+async function delBizNote(pid, nid) {
+  const p = bizData.find(b => b.id === pid);
+  if (p) { p.notes = p.notes.filter(n => n.nid !== nid); await dbSave('business', bizData); refreshModal(); }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  自己板块
+// ═══════════════════════════════════════════════════════════════
+const DEFAULT_SELF = [
+  { id:'s1', name:'身心放松', icon:'🧘', focus:'保持松弛心态，允许无聊', notes:[] },
+  { id:'s2', name:'探索尝试', icon:'🔍', focus:'扩张舒适圈，不怕失败', notes:[] },
+  { id:'s3', name:'运动健康', icon:'🏃', focus:'8月运动主题', notes:[] },
+  { id:'s4', name:'心理咨询', icon:'💭', focus:'每周五晚间', notes:[] },
+];
+let selfData = [];
+
+function renderSelf() {
+  let h = '<div class="modal-title">👤 自己</div>';
+  selfData.forEach(a => {
+    h += `<div class="panel-card"><div class="panel-card-header"><span class="panel-icon">${a.icon}</span><span class="panel-name">${escHtml(a.name)}</span></div>`;
+    h += `<div class="panel-focus">当前重点：<input class="panel-input" value="${escHtml(a.focus)}" onchange="updateSelfFocus('${a.id}',this.value)"></div>`;
+    h += `<div class="panel-subtitle">📝 记录 <button class="btn-tiny ghost" onclick="addSelfNote('${a.id}')">+ 添加</button></div>`;
+    if (a.notes.length) {
+      a.notes.forEach(n => { h += `<div class="panel-item"><span>📝</span> <span>${escHtml(n.text)}</span><span class="panel-meta">${n.date}</span><span class="panel-del" onclick="delSelfNote('${a.id}','${n.nid}')">✕</span></div>`; });
+    } else { h += '<div class="panel-empty">还没有记录 · 把感受、想法、计划写下来</div>'; }
+    h += '</div>';
+  });
+  return h;
+}
+
+async function updateSelfFocus(id, val) {
+  const a = selfData.find(s => s.id === id); if (a) { a.focus = val; await dbSave('self', selfData); }
+}
+async function addSelfNote(aid) {
+  const text = prompt('记录内容：'); if (!text) return;
+  const a = selfData.find(s => s.id === aid);
+  if (a) { a.notes.push({ nid: 'n'+Date.now(), text, date: new Date().toLocaleDateString('zh-CN',{month:'short',day:'numeric'}) }); await dbSave('self', selfData); refreshModal(); }
+}
+async function delSelfNote(aid, nid) {
+  const a = selfData.find(s => s.id === aid);
+  if (a) { a.notes = a.notes.filter(n => n.nid !== nid); await dbSave('self', selfData); refreshModal(); }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  资料库
+// ═══════════════════════════════════════════════════════════════
+const DEFAULT_KB = [
+  { id:'k1', name:'犬医学', icon:'🏥', entries:[] },
+  { id:'k2', name:'营养学', icon:'🥩', entries:[] },
+  { id:'k3', name:'品牌资料', icon:'💡', entries:[] },
+  { id:'k4', name:'素材库', icon:'🎥', entries:[] },
+];
+let kbData = [];
+
+function renderKb() {
+  let h = '<div class="modal-title">📦 资料库</div>';
+  kbData.forEach(cat => {
+    h += `<div class="panel-card"><div class="panel-card-header"><span class="panel-icon">${cat.icon}</span><span class="panel-name">${escHtml(cat.name)}</span></div>`;
+    h += `<div class="panel-subtitle">📁 资料条目 <button class="btn-tiny ghost" onclick="addKbEntry('${cat.id}')">+ 添加</button></div>`;
+    if (cat.entries.length) {
+      cat.entries.forEach(e => {
+        const typeTag = e.type === 'link' ? '🔗链接' : e.type === 'file' ? '📄文件' : '📝笔记';
+        h += `<div class="panel-item"><span>${typeTag}</span> <span>${escHtml(e.title)}</span>`;
+        if (e.tags && e.tags.length) h += `<span class="panel-tags">${e.tags.map(t=>'#'+t).join(' ')}</span>`;
+        h += `<span class="panel-meta">${e.date}</span><span class="panel-del" onclick="delKbEntry('${cat.id}','${e.eid}')">✕</span></div>`;
+      });
+    } else { h += '<div class="panel-empty">还没有资料 · 把论文、链接、文件存进来</div>'; }
+    h += '</div>';
+  });
+  return h;
+}
+
+async function addKbEntry(cid) {
+  const title = prompt('资料标题：'); if (!title) return;
+  const typeChoice = prompt('类型（link=链接 / file=文件 / note=笔记）：') || 'link';
+  const type = ['link','file','note'].includes(typeChoice) ? typeChoice : 'link';
+  const tagsStr = prompt('标签（用逗号分隔，如 库欣,营养）：') || '';
+  const tags = tagsStr.split(',').map(t=>t.trim()).filter(Boolean);
+  const cat = kbData.find(c => c.id === cid);
+  if (cat) { cat.entries.push({ eid: 'e'+Date.now(), title, type, tags, date: new Date().toLocaleDateString('zh-CN',{month:'short',day:'numeric'}) }); await dbSave('kb', kbData); refreshModal(); }
+}
+async function delKbEntry(cid, eid) {
+  const cat = kbData.find(c => c.id === cid);
+  if (cat) { cat.entries = cat.entries.filter(e => e.eid !== eid); await dbSave('kb', kbData); refreshModal(); }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  CHECK-IN SYSTEM
+// ═══════════════════════════════════════════════════════════════
+const DEFAULT_CHECKINS = [
+  { id:'c1', text:'🪥 犰狳刷牙', group:'🐾 小狗' },
+  { id:'c2', text:'🏋️ 犰狳犬健身', group:'🐾 小狗' },
+  { id:'c3', text:'🪥 悠米护理', group:'🐾 小狗' },
+  { id:'c4', text:'🇬🇧 多邻国打卡', group:'📚 学习' },
+  { id:'c5', text:'📖 深度阅读 30 分钟', group:'📚 学习' },
+  { id:'c6', text:'🏃 运动', group:'👤 自己' },
+  { id:'c7', text:'🧘 放松 / 冥想', group:'👤 自己' },
+];
+let checkins = { date: '', items: [], custom: [] };
+
+function renderCheckins() {
+  const allItems = [...checkins.items, ...checkins.custom];
+  const groups = {};
+  allItems.forEach(item => {
+    if (!groups[item.group]) groups[item.group] = [];
+    groups[item.group].push(item);
+  });
+
+  let html = '<div class="modal-title">✅ 今日打卡</div>';
+  const doneCount = allItems.filter(i => i.done).length;
+  const totalCount = allItems.length;
+  const pct = totalCount > 0 ? Math.round(doneCount / totalCount * 100) : 0;
+  html += `<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 14px;background:var(--card);border-radius:var(--radius-sm);">
+    <span style="font-size:20px;font-weight:700;color:${pct===100?'var(--green)':pct>=50?'var(--amber)':'var(--text-muted)'}">${doneCount}/${totalCount}</span>
+    <div style="flex:1;height:5px;border-radius:3px;background:var(--border);overflow:hidden;"><div style="height:100%;border-radius:3px;background:${pct===100?'var(--green)':pct>=50?'var(--amber)':'var(--coral)'};width:${pct}%"></div></div>
+    <span style="font-size:12px;color:var(--text-subtle);">${pct}%</span>
+  </div>`;
+  const order = ['🐾 小狗', '📚 学习', '💼 工作', '👤 自己'];
+  order.forEach(g => {
+    if (!groups[g] || !groups[g].length) return;
+    html += '<div class="checkin-section"><div class="checkin-section-title">'+g+'</div>';
+    groups[g].forEach((item) => {
+      html += `
+        <div class="checkin-row">
+          <div class="checkin-circle ${item.done?'done':''}" onclick="toggleCheckin('${item.id}')">${item.done?'✓':''}</div>
+          <span class="checkin-text ${item.done?'done-text':''}">${escHtml(item.text)}</span>
+        </div>`;
+    });
+    html += '</div>';
+  });
+
+  html += '<div class="checkin-section"><div class="checkin-add" onclick="showCheckinAdd()">+ 自定义打卡项</div>';
+  html += '<div id="checkinAddRow" style="display:none;margin-top:6px;">';
+  html += '<select id="checkinGroup" style="margin-bottom:4px;border:1px solid var(--border);padding:4px;border-radius:6px;font-size:12px;font-family:var(--font);">';
+  order.forEach(g => { html += '<option value="'+g+'">'+g+'</option>'; });
+  html += '</select>';
+  html += '<input id="checkinInput" placeholder="打卡内容..." onkeydown="if(event.key===\'Enter\')addCheckin()" style="margin-bottom:4px;">';
+  html += '<button class="btn-tiny primary" onclick="addCheckin()">添加</button></div></div>';
+
+  return html;
+}
+
+async function toggleCheckin(id) {
+  const item = [...checkins.items, ...checkins.custom].find(c => c.id === id);
+  if (!item) return;
+  item.done = !item.done;
+  await dbSave('checkin', checkins);
+  document.getElementById('modalContent').innerHTML = renderCheckins();
+}
+
+async function addCheckin() {
+  const text = document.getElementById('checkinInput')?.value.trim();
+  const group = document.getElementById('checkinGroup')?.value || '👤 自己';
+  if (!text) return;
+  checkins.custom.push({ id: 'cc'+Date.now(), text, group, done: false });
+  await dbSave('checkin', checkins);
+  document.getElementById('modalContent').innerHTML = renderCheckins();
+}
+
+function showCheckinAdd() {
+  document.getElementById('checkinAddRow').style.display = 'block';
+  document.getElementById('checkinInput').focus();
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  GOALS
+// ═══════════════════════════════════════════════════════════════
+const DEFAULT_GOALS = [
+  { id:'g1', name:'犰狳体重恢复', target:'17.5 → 19.0 kg', fill:74, cls:'amber', status:'up', desc:'近月持续改善，康复训练效果明显' },
+  { id:'g2', name:'犰狳肌肉恢复', target:'康复训练', fill:60, cls:'amber', status:'up', desc:'左后肢承重明显提升 · 阶段 2/4' },
+  { id:'g3', name:'犰狳步态改善', target:'本体感觉', fill:55, cls:'amber', status:'up', desc:'转弯交叉减少，站立稳定性提高' },
+  { id:'g4', name:'悠米肝结节', target:'持续监测', fill:90, cls:'green', status:'stable', desc:'长期稳定，无变化' },
+  { id:'g5', name:'深度学习能力', target:'理论→实践', fill:40, cls:'green', status:'up', desc:'系统性学习中，需更多临床验证' },
+];
+let goalsData = [];
+
+function renderGoals() {
+  let h = '<div class="modal-title">🎯 长期目标追踪</div>';
+  goalsData.forEach(g => {
+    const sc = g.cls === 'green' ? 'var(--green)' : 'var(--amber)';
+    const stIcon = g.status === 'up' ? '↑ 改善中' : '→ 稳定';
+    h += `<div class="panel-card">
+      <div class="panel-card-header"><span class="panel-name">${escHtml(g.name)}</span><span class="panel-tag" style="background:${sc}20;color:${sc}">${stIcon}</span></div>
+      <div style="display:flex;align-items:center;gap:10px;margin:6px 0;">
+        <div style="flex:1;height:5px;border-radius:3px;background:var(--border);overflow:hidden;"><div style="height:100%;border-radius:3px;background:${sc};width:${g.fill}%"></div></div>
+        <span style="font-size:12px;color:var(--text-muted);white-space:nowrap;">${g.fill}%</span>
+      </div>
+      <div class="panel-focus" style="font-size:12px;color:var(--text-muted);">目标：${escHtml(g.target)}</div>
+      <div class="panel-focus" style="font-size:12px;color:var(--text-subtle);">${escHtml(g.desc)}</div>
+    </div>`;
+  });
+  return h;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  MODAL SYSTEM
+// ═══════════════════════════════════════════════════════════════
+let currentModal = null;
+
+function openModal(type) {
+  currentModal = type;
+  const overlay = document.getElementById('modalOverlay');
+  const content = document.getElementById('modalContent');
+
+  switch(type) {
+    case 'capture':
+      content.innerHTML = `
+        <div class="modal-title">✏️ 随手记</div>
+        <textarea class="capture-textarea" id="captureText" placeholder="丢进来任何东西：想法、链接、灵感、待办..."></textarea>
+        <div class="capture-btn-row">
+          <button class="btn ghost" onclick="closeModalDirect()">取消</button>
+          <button class="btn primary" onclick="submitCapture()">记录</button>
+        </div>
+        <div id="captureResult" style="margin-top:10px;font-size:12px;color:var(--text-muted);display:none;"></div>
+        <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px;">
+          <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:8px;">今天已记录</div>
+          <div id="captureHistory"></div>
+        </div>`;
+      renderCaptureHistory();
+      setTimeout(()=>document.getElementById('captureText')?.focus(), 200);
+      break;
+
+    case 'checkin':
+      content.innerHTML = renderCheckins();
+      break;
+
+    case 'goals':
+      content.innerHTML = renderGoals();
+      break;
+
+    case 'learnDetail':
+      content.innerHTML = renderLearn();
+      break;
+
+    case 'workDetail':
+      content.innerHTML = renderWork();
+      break;
+
+    case 'selfDetail':
+      content.innerHTML = renderSelf();
+      break;
+
+    case 'kbDetail':
+      content.innerHTML = renderKb();
+      break;
+
+    case 'businessDetail':
+      content.innerHTML = renderBusiness();
+      break;
+
+    case 'nutrition':
+      content.innerHTML = `<div class="modal-title">🥩 营养数据库</div>
+        <div class="panel-card">
+          <div class="panel-card-header"><span class="panel-icon">🍖</span><span class="panel-name">犰狳食谱</span></div>
+          <div class="panel-focus">当前方案：低脂高蛋白 + 控磷</div>
+          <div class="panel-item"><span>🥩</span> <span>主食：鸭肉/兔肉冻干</span></div>
+          <div class="panel-item"><span>🥬</span> <span>蔬菜：西兰花、南瓜、胡萝卜</span></div>
+          <div class="panel-item"><span>💊</span> <span>保健品：辅酶Q10、鱼油、益生菌</span></div>
+        </div>
+        <div class="panel-card">
+          <div class="panel-card-header"><span class="panel-icon">💊</span><span class="panel-name">保健品清单</span></div>
+          <div class="panel-item"><span>💊</span> <span>曲洛司坦（ Vetoryl ）— 库欣</span></div>
+          <div class="panel-item"><span>💊</span> <span>辅酶 Q10 — 心脏保护</span></div>
+          <div class="panel-item"><span>💊</span> <span>Omega-3 鱼油 — 抗炎</span></div>
+          <div class="panel-item"><span>💊</span> <span>益生菌 — 肠胃</span></div>
+        </div>
+        <div style="text-align:center;padding:20px 0;color:var(--text-subtle);font-size:12px;">💡 详细营养数据请前往犰狳/悠米健康档案查看</div>`;
+      break;
+
+    case 'rehab':
+      content.innerHTML = `<div class="modal-title">🏋️ 康复训练</div>
+        <div class="panel-card">
+          <div class="panel-card-header"><span class="panel-icon">🐕</span><span class="panel-name">犰狳训练计划</span></div>
+          <div class="panel-subtitle">每日训练</div>
+          <div class="panel-item"><span>✓</span> <span>后退走 — 10 步 x 3 组</span></div>
+          <div class="panel-item"><span>✓</span> <span>跨杆 — 5 cm x 10 次</span></div>
+          <div class="panel-item"><span>✓</span> <span>侧向走 — 左右各 5 步</span></div>
+          <div class="panel-item"><span>✓</span> <span>站姿保持 — 30 秒 x 3</span></div>
+          <div class="panel-subtitle">本周目标</div>
+          <div class="panel-item"><span>🎯</span> <span>增加跨杆高度至 8 cm</span></div>
+          <div class="panel-item"><span>🎯</span> <span>后退走增加至 15 步</span></div>
+        </div>
+        <div style="text-align:center;padding:20px 0;color:var(--text-subtle);font-size:12px;">💡 详细训练记录请前往犰狳健康档案查看</div>`;
+      break;
+
+    case 'exams':
+      content.innerHTML = `<div class="modal-title">📋 检查记录</div>
+        <div class="panel-card">
+          <div class="panel-card-header"><span class="panel-icon">🐕</span><span class="panel-name">犰狳</span></div>
+          <div class="panel-subtitle">最近检查</div>
+          <div class="panel-item"><span>📅</span> <span>2026.07.15 血常规 + 生化</span><span class="panel-meta">正常</span></div>
+          <div class="panel-item"><span>📅</span> <span>2026.06.20 ACTH 刺激试验</span><span class="panel-meta">监控</span></div>
+          <div class="panel-subtitle">待做检查</div>
+          <div class="panel-item"><span>⏰</span> <span>8月中旬：复查 ALT、ALKP</span></div>
+        </div>
+        <div class="panel-card">
+          <div class="panel-card-header"><span class="panel-icon">🐕‍🦺</span><span class="panel-name">悠米</span></div>
+          <div class="panel-subtitle">最近检查</div>
+          <div class="panel-item"><span>📅</span> <span>2026.07.10 腹部超声</span><span class="panel-meta">稳定</span></div>
+          <div class="panel-subtitle">待做检查</div>
+          <div class="panel-item"><span>⏰</span> <span>9月：半年度超声复查</span></div>
+        </div>
+        <div style="text-align:center;padding:20px 0;color:var(--text-subtle);font-size:12px;">💡 详细检查数据请前往各狗健康档案查看</div>`;
+      break;
+
+    default:
+      content.innerHTML = '<div class="modal-title">📱</div><div style="text-align:center;padding:30px 0;color:var(--text-muted);">即将开放</div>';
+  }
+
+  overlay.classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+
+function refreshModal() {
+  if (!currentModal) return;
+  const content = document.getElementById('modalContent');
+  switch(currentModal) {
+    case 'learnDetail': content.innerHTML = renderLearn(); break;
+    case 'workDetail': content.innerHTML = renderWork(); break;
+    case 'selfDetail': content.innerHTML = renderSelf(); break;
+    case 'kbDetail': content.innerHTML = renderKb(); break;
+    case 'goals': content.innerHTML = renderGoals(); break;
+    case 'checkin': content.innerHTML = renderCheckins(); break;
+    case 'businessDetail': content.innerHTML = renderBusiness(); break;
+  }
+}
+
+function closeModal(e) {
+  if (e && e.target !== document.getElementById('modalOverlay')) return;
+  closeModalDirect();
+}
+
+function closeModalDirect() {
+  document.getElementById('modalOverlay').classList.remove('show');
+  document.body.style.overflow = '';
+  currentModal = null;
+}
+
+// ════════════════���══════════════════════════════════════════════
+//  CAPTURE
+// ═══════════════════════════════════════════════════════════════
+const CATEGORY_RULES = [
+  { tag:'🐾小狗', kw:['犰狳','悠米','狗','边牧','库欣','曲洛司坦','ACTH','犬健身','肌肉','步态','体重','刷牙','营养','肝脏','结节','ALT'] },
+  { tag:'📚学习', kw:['学习','课程','论文','读书','笔记','营养学','犬医学','兽医','研究','文献','多邻国','英语','深度'] },
+  { tag:'💼工作', kw:['品牌','咨询','客户','客服','私域','合作','项目','内容','视频','朋友圈','小红书','推广','淘宝','库存','研发'] },
+  { tag:'👤自己', kw:['运动','健康','睡眠','休息','心理','放松','自己','感受','旅行','收拾','整理'] },
+  { tag:'📦资料', kw:['链接','http','www','.com','截图','PDF','文档','表格','数据','参考','收藏'] },
+  { tag:'💡灵感', kw:['灵感','想法','创意','或许','试试','感觉','好像','有意思','突然','未来','也许'] },
+];
+let captures = [];
+
+async function submitCapture() {
+  const text = document.getElementById('captureText').value.trim();
+  if (!text) return;
+
+  let tag = '💡灵感';
+  let best = 0;
+  const lower = text.toLowerCase();
+  CATEGORY_RULES.forEach(r => {
+    let s = 0;
+    r.kw.forEach(k => { if (lower.includes(k)) s++; });
+    if (s > best) { best = s; tag = r.tag; }
+  });
+
+  captures.push({ id:'c'+Date.now(), text, tag, time:new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}) });
+  await dbSave('capture', { date: getToday(), items: captures });
+
+  document.getElementById('captureText').value = '';
+  document.getElementById('captureResult').style.display = 'block';
+  document.getElementById('captureResult').textContent = '✓ 已记录 · 归类为 ' + tag;
+  renderCaptureHistory();
+}
+
+function renderCaptureHistory() {
+  const el = document.getElementById('captureHistory');
+  if (!el) return;
+  if (!captures.length) { el.innerHTML = '<div style="font-size:11px;color:var(--text-subtle);text-align:center;padding:8px 0;">还没有记录</div>'; return; }
+  el.innerHTML = captures.slice().reverse().map(c => `
+    <div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;">
+      <span style="font-size:10px;background:var(--bg);padding:1px 6px;border-radius:10px;white-space:nowrap;">${c.tag}</span>
+      <span style="flex:1;color:var(--text);">${escHtml(c.text)}</span>
+      <span style="color:var(--text-subtle);font-size:10px;">${c.time}</span>
+    </div>`).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  UTILS
+// ═══════════════════════════════════════════════════════════════
+function getToday() { return new Date().toISOString().slice(0,10); }
+function escHtml(s) { return s ? s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : ''; }
+
+// ═══════════════════════════════════════════════════════════════
+//  STARTUP
+// ═══════════════════════════════════════════════════════════════
+checkSession();
+</script>
+</body>
+</html>
