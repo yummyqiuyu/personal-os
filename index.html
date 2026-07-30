@@ -1699,7 +1699,7 @@ const CATEGORY_RULES = [
 ];
 let captures = [];
 
-async function submitCapture() {
+async function submitCapture() {   const text = document.getElementById('captureText').value.trim();   if (!text) return;    let tag = '💡灵感';   let best = 0;   const lower = text.toLowerCase();   CATEGORY_RULES.forEach(r => {     let s = 0;     r.kw.forEach(k => { if (lower.includes(k)) s++; });     if (s > best) { best = s; tag = r.tag; }   });    captures.push({ id:'c'+Date.now(), text, tag, time:new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}) });   await dbSave('capture', { date: getToday(), items: captures });    document.getElementById('captureText').value = '';   document.getElementById('captureResult').style.display = 'block';    // ═══════════════════════════════════════════════════════════════   //  AI 智能待办提取   // ═══════════════════════════════════════════════════════════════   const todayKeywords = ['今天','中午','今晚','下午','早上','上午','现在','马上','待会','等下','立刻','立即','一会','一会儿'];   const isTodayAction = todayKeywords.some(k => text.includes(k));    if (isTodayAction) {     let actionText = text;     todayKeywords.forEach(k => { actionText = actionText.replaceAll(k, ''); });     actionText = actionText.replace(/^[，,、\s]+/, '').trim();     if (!actionText) actionText = text;      md.push({ id:'md'+Date.now(), text: actionText, done: false });     await dbSave('md', md);     renderMd();      document.getElementById('captureResult').textContent = '✓ 已记录 · 归类为 ' + tag + ' · 🔔 已加入今日必做';   } else {     document.getElementById('captureResult').textContent = '✓ 已记录 · 归类为 ' + tag;   }    renderCaptureHistory(); } {
   const text = document.getElementById('captureText').value.trim();
   if (!text) return;
 
