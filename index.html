@@ -664,7 +664,7 @@ async function ghGetFile() {
     throw new Error('GitHub 读取失败: HTTP ' + res.status);
   }
   const data = await res.json();
-  const content = atob(data.content.replace(/\s/g, ''));
+  const content = decodeURIComponent(escape(atob(data.content.replace(/\s/g, ''))));
   return { content, sha: data.sha };
 }
 
@@ -693,12 +693,15 @@ async function ghPutFile(contentStr, sha) {
 //  初始化 / 数据加载
 // ═══════════════════════════════════════════════════════════════
 async function handleSetup() {
-  const token = document.getElementById('authToken').value.trim();
+  const rawToken = document.getElementById('authToken').value.trim();
   const errEl = document.getElementById('authError');
   const btn = document.getElementById('authBtn');
 
   errEl.textContent = '';
-  if (!token) { errEl.textContent = '请粘贴你的 GitHub Token'; return; }
+  if (!rawToken) { errEl.textContent = '请粘贴你的 GitHub Token'; return; }
+
+  // 清理 token：移除所有非 ASCII 字符，避免 fetch header 报错
+  const token = rawToken.replace(/[^\x20-\x7E]/g, '');
 
   btn.disabled = true;
   btn.textContent = '正在连接 GitHub...';
@@ -1627,8 +1630,8 @@ async function submitCapture() {
     if (!actionText) actionText = text;
 
     // 自动加入今日必做（不弹窗打扰，减少操作）
-    md.push({ id:'md'+Date.now(), text: actionText, done: false });
-    await dbSave('md', md);
+    mdItems.push({ id:'md'+Date.now(), text: actionText, done: false });
+    await dbSave('mustdo', { date: getToday(), items: mdItems });
     renderMd();
 
     document.getElementById('captureResult').textContent = '✓ 已记录 · 归类为 ' + tag + ' · 🔔 已加入今日必做';
